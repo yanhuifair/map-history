@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>中国历史疆域 · 时空地球</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand">
+      <h1>中国历史疆域 · 时空地球</h1>
+      <span class="sub">夏（前 2070）至今 · 拖动时间轴，看疆域在球面上演变</span>
+    </div>
+    <div id="chips-row" class="chips-row"></div>
+    <div class="tools">
+      <button id="t-province" title="省级参考底图">省界</button>
+      <button id="t-grid" title="经纬网">经纬</button>
+      <button id="t-rotate" title="自动自转">自转</button>
+      <i class="sep"></i>
+      <button id="t-home" title="回到中国视角">◎</button>
+      <button id="t-in" title="放大">＋</button>
+      <button id="t-out" title="缩小">－</button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <div id="globe"></div>
+    <div id="labels"></div>
+    <div id="year-box">
+      <div id="year-big">前 2070</div>
+      <div id="year-sub">公元前 2070 年</div>
+    </div>
+    <aside id="panel">
+      <div id="panel-main"></div>
+      <div class="hint">拖动球面旋转 · 滚轮缩放 · ←/→ 微调年份 · 空格播放</div>
+    </aside>
+  </main>
+
+  <footer id="bottom">
+    <div class="playbar">
+      <button id="btn-prev" title="上一个政权">⏮</button>
+      <button id="btn-play" title="播放 / 暂停（空格）">▶</button>
+      <button id="btn-next" title="下一个政权">⏭</button>
+      <button id="btn-speed" title="播放速度">×2</button>
+      <button id="btn-reset" title="重置时间轴">⟲</button>
+      <span class="tl-tip">点击色块可跳转 · 滚轮缩放时间轴 · 拖动刻度轴平移</span>
+    </div>
+    <div class="tl-wrap"><canvas id="timeline"></canvas></div>
+  </footer>
+</div>
+<div id="tip"></div>
+
+<script src="js/vendor/three.min.js"></script>
+<script src="js/data/geo-base.js"></script>
+<script src="js/data/dynasties.js"></script>
+<script src="js/globe.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

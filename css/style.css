@@ -1,0 +1,205 @@
+/* =============================================================
+ * 中国历史疆域 · 时空地球 —— 暗色极简样式
+ * ============================================================= */
+:root {
+  --bg-0: #04060c;
+  --bg-1: #080d18;
+  --glass: rgba(11, 15, 24, 0.62);
+  --line: rgba(255, 255, 255, 0.07);
+  --text: #e9edf5;
+  --muted: #7f8899;
+  --muted-2: #5f6878;
+  --accent: #ffd68c;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue",
+               "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app { display: flex; flex-direction: column; height: 100%; position: relative; }
+
+#app::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 50% 38%, rgba(40, 78, 140, 0.22), transparent 70%),
+    radial-gradient(900px 500px at 12% 88%, rgba(120, 70, 40, 0.14), transparent 70%),
+    var(--bg-0);
+}
+
+/* ---------------- 顶栏 ---------------- */
+#top {
+  position: relative; z-index: 5;
+  height: 54px; flex: 0 0 54px;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0.9), rgba(8, 12, 20, 0.55));
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+}
+.brand { display: flex; flex-direction: column; gap: 1px; flex: 0 0 auto; }
+.brand h1 {
+  margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.04em;
+}
+.brand .sub { font-size: 11px; color: var(--muted); }
+
+.chips-row {
+  flex: 1 1 auto; display: flex; gap: 5px; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; padding: 2px 0;
+}
+.chips-row::-webkit-scrollbar { height: 0; }
+.era {
+  flex: 0 0 auto; height: 24px; padding: 0 9px; border-radius: 7px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  color: var(--muted); font-size: 11.5px; cursor: pointer; white-space: nowrap;
+  transition: color .15s, background .15s, border-color .15s;
+  font-family: inherit;
+}
+.era:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+.era.on {
+  color: #0a0d14; font-weight: 600;
+  background: var(--c); border-color: var(--c);
+}
+
+.tools { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
+.tools button {
+  height: 24px; min-width: 34px; padding: 0 8px; border-radius: 7px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  color: var(--muted); font-size: 11.5px; cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.tools button:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+.tools button.on {
+  color: #0a0d14; background: var(--accent); border-color: var(--accent); font-weight: 600;
+}
+.tools .sep { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
+
+/* ---------------- 舞台 ---------------- */
+#stage { position: relative; flex: 1 1 auto; z-index: 1; overflow: hidden; }
+#globe { position: absolute; inset: 0; }
+#globe canvas { display: block; }
+
+#labels { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.cap-label {
+  position: absolute; left: 0; top: 0;
+  display: flex; align-items: center; gap: 5px;
+  padding: 2px 7px 2px 5px; border-radius: 20px;
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px; line-height: 1.5; white-space: nowrap;
+  cursor: pointer; pointer-events: auto;
+  backdrop-filter: blur(6px);
+  transition: opacity .2s;
+  font-variant-numeric: tabular-nums;
+}
+.cap-label i { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px; }
+.cap-label b { font-weight: 600; }
+.cap-label span { color: var(--muted); font-size: 10.5px; }
+
+#year-box {
+  position: absolute; left: 20px; top: 18px; z-index: 4; pointer-events: none;
+}
+#year-big {
+  font-size: 46px; font-weight: 200; letter-spacing: 0.01em;
+  color: var(--accent); line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 24px rgba(255, 190, 110, 0.28);
+}
+#year-sub { margin-top: 5px; font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+
+/* ---------------- 信息面板 ---------------- */
+#panel {
+  position: absolute; right: 16px; top: 16px; width: 322px; z-index: 4;
+  padding: 14px 15px 12px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+#panel .hint {
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line);
+  font-size: 10.5px; color: var(--muted-2); line-height: 1.6;
+}
+.pm-head { display: flex; align-items: baseline; gap: 8px; }
+.pm-head .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; transform: translateY(-1px); }
+.pm-head h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: 0.02em; }
+.pm-head .lv {
+  font-size: 10.5px; color: var(--muted); padding: 1px 6px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06); margin-left: auto;
+}
+.pm-meta { display: flex; gap: 16px; margin-top: 11px; flex-wrap: wrap; }
+.pm-meta label { display: block; font-size: 10px; color: var(--muted-2); letter-spacing: 0.06em; }
+.pm-meta p { margin: 2px 0 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pm-desc {
+  margin: 11px 0 0; font-size: 12.5px; line-height: 1.75; color: #c3cad8;
+}
+.pm-others { margin-top: 12px; }
+.pm-others > label { display: block; font-size: 10px; color: var(--muted-2); letter-spacing: 0.06em; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.chip {
+  font-size: 11px; padding: 2px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  color: color-mix(in srgb, var(--c) 70%, #ffffff);
+  transition: background .15s;
+}
+.chip:hover { background: color-mix(in srgb, var(--c) 34%, transparent); }
+.empty { color: var(--muted); font-size: 13px; line-height: 1.8; }
+.empty span { font-size: 11.5px; color: var(--muted-2); }
+
+/* ---------------- 底部时间轴 ---------------- */
+#bottom {
+  position: relative; z-index: 5; flex: 0 0 172px; height: 172px;
+  padding: 8px 16px 10px;
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0.5), rgba(6, 9, 16, 0.92));
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.playbar { display: flex; align-items: center; gap: 6px; flex: 0 0 28px; }
+.playbar button {
+  height: 24px; min-width: 28px; padding: 0 7px; border-radius: 7px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04);
+  color: var(--muted); font-size: 12px; cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.playbar button:hover { color: var(--text); background: rgba(255, 255, 255, 0.09); }
+#btn-play.on { color: #0a0d14; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+.playbar .tl-tip { margin-left: 8px; font-size: 10.5px; color: var(--muted-2); }
+.tl-wrap { flex: 1 1 auto; position: relative; min-height: 0; }
+#timeline { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ---------------- 悬浮提示 ---------------- */
+#tip {
+  position: fixed; z-index: 30; display: none; pointer-events: none;
+  padding: 6px 9px; border-radius: 8px;
+  background: rgba(10, 14, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11.5px; line-height: 1.6; white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+#tip b { font-size: 12.5px; margin-right: 6px; }
+#tip span { color: #b9c1d1; margin-right: 6px; font-variant-numeric: tabular-nums; }
+#tip .muted { color: var(--muted-2); }
+
+/* ---------------- 窄屏适配 ---------------- */
+@media (max-width: 900px) {
+  #panel { width: 260px; right: 10px; top: 10px; }
+  #year-big { font-size: 34px; }
+  .brand .sub { display: none; }
+  .playbar .tl-tip { display: none; }
+}
+@media (max-width: 640px) {
+  .chips-row { display: none; }
+  #panel { width: calc(100% - 20px); right: 10px; top: auto; bottom: 10px; }
+  #year-box { top: 10px; left: 12px; }
+}
