@@ -149,7 +149,7 @@
     var seen = {};
     for (var i = 0; i < list.length; i++) {
       var d = list[i];
-      if (!d.cap && !labelPt[d.id]) continue;
+      if (!labelPt[d.id]) continue;
       seen[d.id] = 1;
       var el = regionLabels[d.id];
       if (!el) {
@@ -166,16 +166,15 @@
     }
   }
 
-  // 区域名锚点用「都城」——都城即政权治所，对中华王朝必在腹地（唐→长安、清→北京），
-  // 比几何质心/最大内切圆更贴切（后者会被西域、漠北等偏远疆域整体拉偏）。
+  // 标注点 = 色块「正中」。用最大内切圆圆心（GEO_LABEL）而非面积质心：
+  // 后者会被西域、漠北等细长延伸区的面积拖偏（唐的「唐」曾落到新疆东部），
+  // 而最大内切圆圆心始终落在色块最厚实的腹地正中。
   function updateRegionPositions() {
     for (var id in regionLabels) {
       var el = regionLabels[id];
-      var d = findById(id);
-      if (!d) continue;
-      var anchor = d.cap ? [d.cap.lng, d.cap.lat] : labelPt[id];
-      if (!anchor) continue;
-      var p = globe.project(anchor[0], anchor[1]);
+      var pt = labelPt[id];
+      if (!pt) continue;
+      var p = globe.project(pt[0], pt[1]);
       // 区域屏幕尺寸太小则不标注，避免杂乱
       var big = true, box = labelBox[id];
       if (box) {
@@ -183,8 +182,7 @@
         big = Math.abs(c2.x - c1.x) > 44 || Math.abs(c2.y - c1.y) > 30;
       }
       el.style.opacity = (p.visible && big) ? '1' : '0';
-      // 标在都城正上方，与都城标签上下错开
-      el.style.transform = 'translate3d(' + p.x + 'px,' + (p.y - 28) + 'px,0) translate(-50%,-50%)';
+      el.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0) translate(-50%,-50%)';
     }
   }
 
