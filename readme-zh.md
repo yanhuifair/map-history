@@ -20,9 +20,13 @@
 
 ## 疆域数据模型
 
-每个政权 = 一组现代省级行政区（`prov`）+ 若干手工多边形（`extra`，用于现代国界以外的历史疆域：蒙古高原、外东北、中亚、朝鲜半岛北部、交趾/安南、河西走廊等）。
+每个政权在 `js/data/dynasties.js` 中定义为：一组现代省级行政区（`prov`），并可用以下方式精修：
 
-历史疆域为**示意性近似**（主体/极盛范围），不用于任何边界主张。海岸线底图来自 Natural Earth 50m 陆地轮廓（公有领域，不含国界），中国区域用省级边界回填、海岸线精确吻合；中国省级边界来自 DataV.GeoAtlas。
+- `cityDel` —— 需要**剔除**的地级市（所列省份内该政权实际未控制的部分，如汉代未及的呼伦贝尔/锡林郭勒、南宋未及的淮北诸市、魏晋未及的青海南部诸州）；
+- `cityAdd` —— 需要**追加**到省级列表之外的市；
+- `extra` —— 现代国界以外的手工多边形（`mongolia`、`outerNE`、`centralAsia`、`annam`、`koreaN`、`hexi`、`longyou` 等）。
+
+构建时把每个政权的「市 + extra」做**多边形并集**，生成干净的外轮廓（`js/data/geo-shape.js`）——于是地图**按地级市填色**以保证精度，同时只描外边界、不出现内部市网格。历史疆域为**示意性近似**，不用于任何边界主张。海岸线底图来自 Natural Earth 50m 陆地轮廓（公有领域，不含国界），中国区域用省级边界回填、海岸线精确吻合；中国省级边界来自 DataV.GeoAtlas。
 
 ## 运行
 
@@ -33,22 +37,31 @@ python3 -m http.server 8791
 # 打开 http://127.0.0.1:8791
 ```
 
-无需构建，运行时不请求任何外部网络（Three.js 已本地化到 `js/vendor/`）。
+无需构建，运行时不请求任何外部网络（生成好的数据文件已随仓库提交）。
 
 ## 目录结构
 
 ```
 index.html              页面骨架
 css/style.css           暗色极简主题
-js/vendor/three.min.js  Three.js r128（本地化）
 js/data/geo-base.js     自动生成：世界陆地 + 中国省级边界 + 九段线
+js/data/geo-shape.js    自动生成：各政权外轮廓（市 + extra 的并集）
 js/data/dynasties.js    政权与疆域数据（手工整理）
 js/globe.js             2D 地图渲染（缓存等距圆柱底图 + 疆域图层）
 js/timeline.js          时间轴：色带分行、缩放平移、拖动
 js/app.js               主控：年份 → 政权集合 → 地图/面板/标签
+tools/fetch-geo.js      抓取 DataV 省 / 市级边界
+tools/build-shape.js    市 + extra 求并集 → js/data/geo-shape.js
 ```
 
-如需重新生成 `geo-base.js`，修改 `/tmp/build_geo.py` 的数据输入（省级 GeoJSON + Natural Earth TopoJSON）后重跑即可。
+重新生成疆域轮廓：
+
+```bash
+node tools/fetch-geo.js    # 下载 DataV 边界到 tools/raw（带缓存）
+node tools/build-shape.js  # 依赖 polygon-clipping
+```
+
+`geo-base.js`（世界陆地 + 省级底图）另行由 Natural Earth 50m TopoJSON + DataV 省级边界生成。
 
 ## 许可
 

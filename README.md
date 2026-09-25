@@ -20,9 +20,13 @@ A single-page interactive visualization of **all major states and dynasties in C
 
 ## Territory data model
 
-Each polity = a set of modern provinces (`prov`) + optional hand-drawn polygons for areas beyond the modern border (`extra`: Mongolian plateau, Outer Manchuria, Central Asia, northern Korea, Jiaozhi/Annam, Hexi corridor, …).
+Each polity is defined in `js/data/dynasties.js` as a set of modern provinces (`prov`), refined by:
 
-Historical extents are **approximate visualizations** of a polity's main / peak territory — not boundary claims. The basemap coastline uses Natural Earth 50m land (public domain, no borders), with the China area refilled from province boundaries so coastlines match exactly; China province boundaries come from DataV.GeoAtlas.
+- `cityDel` — prefecture-level cities to **subtract** (places inside a listed province the polity did *not* actually control, e.g. the northern Inner Mongolia leagues for the Han, the Huai-north cities for the Southern Song, the far-western Qinghai prefectures for Wei/Jin);
+- `cityAdd` — cities to add beyond the listed provinces;
+- `extra` — hand-drawn polygons for areas beyond the modern border (`mongolia`, `outerNE`, `centralAsia`, `annam`, `koreaN`, `hexi`, `longyou`, …).
+
+A build step unions each polity's cities + extras into one clean outline (`js/data/geo-shape.js`), so the map fills by **prefecture-level city** for precision while stroking only the outer boundary — no internal city grid. Historical extents are **approximate visualizations**, not boundary claims. The basemap coastline uses Natural Earth 50m land (public domain, no borders), with the China area refilled from province boundaries so coastlines match exactly; China province boundaries come from DataV.GeoAtlas.
 
 ## Run
 
@@ -33,22 +37,31 @@ python3 -m http.server 8791
 # open http://127.0.0.1:8791
 ```
 
-No build step, no external network requests at runtime (Three.js is vendored in `js/vendor/`).
+No build step and no external network requests at runtime — the generated data files are committed.
 
 ## Structure
 
 ```
-index.html              page shell
-css/style.css           dark minimal theme
-js/vendor/three.min.js  Three.js r128 (vendored)
-js/data/geo-base.js     generated: world land + China provinces + nine-dash line
-js/data/dynasties.js    polity & territory data (hand-curated)
-js/globe.js             2D map rendering (cached equirect base + territory layers)
-js/timeline.js          timeline: bands, rows, zoom/pan, scrub
-js/app.js               wiring: year → polities → map/panel/labels
+index.html               page shell
+css/style.css            dark minimal theme
+js/data/geo-base.js      generated: world land + China provinces + nine-dash line
+js/data/geo-shape.js     generated: per-polity outer outlines (union of cities + extras)
+js/data/dynasties.js     polity & territory data (hand-curated)
+js/globe.js              2D map rendering (cached equirect base + territory layers)
+js/timeline.js           timeline: bands, rows, zoom/pan, scrub
+js/app.js                wiring: year → polities → map/panel/labels
+tools/fetch-geo.js       fetch DataV province / prefecture boundaries
+tools/build-shape.js     union cities + extras → js/data/geo-shape.js
 ```
 
-To regenerate `geo-base.js`, edit `/tmp/build_geo.py` inputs (province GeoJSON + Natural Earth TopoJSON) and re-run it.
+Regenerate the territory outlines:
+
+```bash
+node tools/fetch-geo.js    # download DataV boundaries into tools/raw (cached)
+node tools/build-shape.js  # requires polygon-clipping
+```
+
+`geo-base.js` (world land + province basemap) was generated separately from Natural Earth 50m TopoJSON + DataV province boundaries.
 
 ## License
 

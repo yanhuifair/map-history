@@ -87,6 +87,39 @@
       return p;
     }
 
+    // ---------- 地级市单位（比整省更精确的填色单元；仅在无预计算轮廓时回退） ----------
+    var CITY = window.GEO_CITY;
+    var CITY_UNITS = !!(CITY && CITY.units && CITY.units.length);
+    var unitPaths = [];        // 单位索引 -> Path2D（惰性）
+    var unitsByProv = {};      // 省名 -> [单位索引]
+    var unitNameIdx = {};      // 单位名 -> 索引（用于按名单加/删）
+    if (CITY_UNITS) {
+      for (var ui = 0; ui < CITY.units.length; ui++) {
+        var un = CITY.units[ui];
+        (unitsByProv[un.prov] = unitsByProv[un.prov] || []).push(ui);
+        if (!(un.n in unitNameIdx)) unitNameIdx[un.n] = ui;
+      }
+    }
+    function getUnitPath(i) {
+      if (unitPaths[i]) return unitPaths[i];
+      var u = CITY.units[i];
+      var p = new Path2D();
+      for (var k = 0; k < u.p.length; k++) {
+        var r = u.p[k];
+        if (r.length < 3) continue;
+        p.moveTo(px(r[0][0]), py(r[0][1]));
+        for (var j = 1; j < r.length; j++) p.lineTo(px(r[j][0]), py(r[j][1]));
+        p.closePath();
+      }
+      unitPaths[i] = p;
+      return p;
+    }
+
+    // ---------- 预计算外轮廓（geo-city 市界 + extra 的多边形并集） ----------
+    // 只含外边界，避免逐市描边产生内部网格；外环/内环绕向相反，nonzero 填充自动挖洞。
+    var SHAPE = window.GEO_SHAPE;
+    var HAS_SHAPE = !!(SHAPE && typeof SHAPE === 'object' && SHAPE.__v !== -1);
+
     // 环的有符号面积（canvas 坐标 y 向下）。DataV 省界外环符号恒为负，
     // 手工 extra 环若为正（与省界相反），nonzero 填充下重叠区 winding 相消 = 0，
     // 会渲染出「空心大圈」——因此必须把 extra 环统一成与省界相同的绕向。
@@ -99,20 +132,56 @@
       return s;
     }
 
+    function addRing(p, ring) {
+      if (ring.length < 3) return;
+      if (ringSign(ring) > 0) ring = ring.slice().reverse();
+      p.moveTo(px(ring[0][0]), py(ring[0][1]));
+      for (var j = 1; j < ring.length; j++) p.lineTo(px(ring[j][0]), py(ring[j][1]));
+      p.closePath();
+    }
+
+    // 轮廓环：保持原绕向（外环/内环相反 → nonzero 自动挖洞）
+    function addShapeRing(p, ring) {
+      if (ring.length < 3) return;
+      p.moveTo(px(ring[0][0]), py(ring[0][1]));
+      for (var j = 1; j < ring.length; j++) p.lineTo(px(ring[j][0]), py(ring[j][1]));
+      p.closePath();
+    }
+
     function getPolityPath(d) {
       if (dynPolyCache[d.id]) return dynPolyCache[d.id];
       var p = new Path2D();
-      for (var i = 0; i < d.provNames.length; i++) {
-        var pp = getProvPath(d.provNames[i]);
-        if (pp) p.addPath(pp);
-      }
-      for (var k = 0; k < d.extra.length; k++) {
-        var ring = d.extra[k];
-        if (ring.length < 3) continue;
-        if (ringSign(ring) > 0) ring = ring.slice().reverse();
-        p.moveTo(px(ring[0][0]), py(ring[0][1]));
-        for (var j = 1; j < ring.length; j++) p.lineTo(px(ring[j][0]), py(ring[j][1]));
-        p.closePath();
+      var sh = HAS_SHAPE ? SHAPE[d.id] : null;
+      if (sh && sh.length) {
+        // 预计算轮廓（extra 已并入并集，无需再加）
+        for (var a = 0; a < sh.length; a++) {
+          var poly = sh[a];
+          for (var b = 0; b < poly.length; b++) addShapeRing(p, poly[b]);
+        }
+      } else if (CITY_UNITS) {
+        // 回退：按地级市填色（所列省份的全部下级单位 + cityDel/cityAdd 校正）
+        var del = d.cityDel || [], add = d.cityAdd || [];
+        var delSet = {};
+        for (var q = 0; q < del.length; q++) delSet[del[q]] = 1;
+        for (var i = 0; i < d.provNames.length; i++) {
+          var arr = unitsByProv[d.provNames[i]];
+          if (!arr) continue;
+          for (var a2 = 0; a2 < arr.length; a2++) {
+            if (delSet[CITY.units[arr[a2]].n]) continue;
+            p.addPath(getUnitPath(arr[a2]));
+          }
+        }
+        for (var b2 = 0; b2 < add.length; b2++) {
+          var ai = unitNameIdx[add[b2]];
+          if (ai !== undefined) p.addPath(getUnitPath(ai));
+        }
+        for (var k = 0; k < d.extra.length; k++) addRing(p, d.extra[k]);
+      } else {
+        for (var i2 = 0; i2 < d.provNames.length; i2++) {
+          var pp = getProvPath(d.provNames[i2]);
+          if (pp) p.addPath(pp);
+        }
+        for (var k2 = 0; k2 < d.extra.length; k2++) addRing(p, d.extra[k2]);
       }
       dynPolyCache[d.id] = p;
       return p;
@@ -201,15 +270,17 @@
         var path = getPolityPath(d);
         var alpha = d.level === 1 ? 0.42 : (d.level === 2 ? 0.34 : 0.28);
 
-        // 外发光
-        c.save();
-        c.globalAlpha = 0.55;
-        c.shadowColor = d.color;
-        c.shadowBlur = TEX_W / 90;
-        c.strokeStyle = d.color;
-        c.lineWidth = lw * 1.4;
-        c.stroke(path);
-        c.restore();
+        // 外发光 + 边界描边：仅在「无预计算轮廓」时跳过（此时逐市描边会产生内部网格）
+        if (!HAS_SHAPE) {
+          c.save();
+          c.globalAlpha = 0.55;
+          c.shadowColor = d.color;
+          c.shadowBlur = TEX_W / 90;
+          c.strokeStyle = d.color;
+          c.lineWidth = lw * 1.4;
+          c.stroke(path);
+          c.restore();
+        }
 
         // 填充
         c.save();
@@ -218,14 +289,15 @@
         c.fill(path);
         c.restore();
 
-        // 边界
-        c.save();
-        c.globalAlpha = 0.95;
-        c.strokeStyle = d.color;
-        c.lineWidth = lw;
-        c.lineJoin = 'round';
-        c.stroke(path);
-        c.restore();
+        if (!CITY_UNITS) {
+          c.save();
+          c.globalAlpha = 0.95;
+          c.strokeStyle = d.color;
+          c.lineWidth = lw;
+          c.lineJoin = 'round';
+          c.stroke(path);
+          c.restore();
+        }
       }
 
       // 南海诸岛（九段线）—— 中国领有南海诸岛时才绘制
