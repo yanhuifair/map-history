@@ -8,7 +8,7 @@ A single-page interactive visualization of **all major states and dynasties in C
 
 ## Features
 
-- **2D world map** (equirectangular Canvas, no external map library): drag to pan, wheel to zoom (anchored at cursor), optional slow drift.
+- **2D world map** (equirectangular Canvas with standard parallel at 35°N, no external map library): drag to pan, wheel to zoom (anchored at cursor), optional slow drift. True-to-shape proportions for China instead of the stretched look of a plain Plate Carrée.
 - **Timeline scrubber** at the bottom: drag / click any year; the territory on the map changes with the timeline.
   - Upper thick band: major unified dynasties; thin bands below: regional / fragmented / frontier regimes.
   - Mouse wheel zooms the time axis; drag the axis to pan; click a dynasty block to jump.

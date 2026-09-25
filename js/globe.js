@@ -9,8 +9,11 @@
  *   getAutoRotate / setAutoRotate / container
  * ============================================================= */
 (function () {
-  var TEX_W = 4096, TEX_H = 2048;
   var DEG = Math.PI / 180;
+  // 标准纬线：地图以中国（北纬 35° 附近）为中心，x 方向按 cos(35°) 校正，
+  // 否则裸等距圆柱会把中高纬疆域横向拉伸 1/cos(φ) 倍（中国显得过宽）。
+  var TEX_W = 4096, STD_LAT = 35;
+  var TEX_H = Math.round(TEX_W / (2 * Math.cos(STD_LAT * DEG)));  // ≈2501
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
@@ -325,7 +328,7 @@
         canvas.width = bw; canvas.height = bh;
         needsRedraw = true;
       }
-      minScale = (w / TEX_W) * 0.95;   // 可缩放至完整显示全球
+      minScale = Math.min(w / TEX_W, h / TEX_H) * 0.95;   // 可缩放至完整显示全球（宽、高同时容纳）
       if (maxScale < minScale * 4) maxScale = minScale * 4;
       if (!inited) { fitChina(); inited = true; }
     }
