@@ -150,6 +150,18 @@
       return p;
     }
 
+    // 环的有符号面积（canvas 坐标 y 向下）。DataV 省界外环符号恒为负，
+    // 手工 extra 环若为正（与省界相反），nonzero 填充下重叠区 winding 相消 = 0，
+    // 会渲染出「空心大圈」——因此必须把 extra 环统一成与省界相同的绕向。
+    function ringSign(ring) {
+      var s = 0;
+      for (var i = 0; i < ring.length; i++) {
+        var a = ring[i], b = ring[(i + 1) % ring.length];
+        s += px(a[0]) * py(b[1]) - px(b[0]) * py(a[1]);
+      }
+      return s;
+    }
+
     function getPolityPath(d) {
       if (dynPolyCache[d.id]) return dynPolyCache[d.id];
       var p = new Path2D();
@@ -160,6 +172,7 @@
       for (var k = 0; k < d.extra.length; k++) {
         var ring = d.extra[k];
         if (ring.length < 3) continue;
+        if (ringSign(ring) > 0) ring = ring.slice().reverse();
         p.moveTo(px(ring[0][0]), py(ring[0][1]));
         for (var j = 1; j < ring.length; j++) p.lineTo(px(ring[j][0]), py(ring[j][1]));
         p.closePath();
