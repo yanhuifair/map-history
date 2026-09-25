@@ -256,11 +256,6 @@
         var x = px(dd.cap.lng), y = py(dd.cap.lat);
         var R = TEX_W / 500;
         c.save();
-        c.globalAlpha = 0.30;
-        c.fillStyle = '#ffffff';
-        c.beginPath(); c.arc(x, y, R * 2.6, 0, Math.PI * 2); c.fill();
-        c.restore();
-        c.save();
         c.fillStyle = '#ffe9b0';
         c.strokeStyle = '#7a4a10';
         c.lineWidth = lw * 0.9;

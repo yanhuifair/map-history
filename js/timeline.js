@@ -207,7 +207,7 @@
         draggingAxis = true; dragStartX = p.x; dragStartMin = view.min;
       } else {
         draggingPointer = true;
-        setYear(x2y(p.x, p.w), true);
+        setYear(x2y(p.x, p.w), true, false);
       }
       canvas.setPointerCapture(e.pointerId);
     });
@@ -223,7 +223,7 @@
         draw();
         return;
       }
-      if (draggingPointer) { setYear(x2y(p.x, p.w), true); return; }
+      if (draggingPointer) { setYear(x2y(p.x, p.w), true, false); return; }
       var d = hitPolity(p.x, p.y);
       if (d !== hover) { hover = d; canvas.style.cursor = d ? 'pointer' : 'default'; draw(); }
       if (d) onHover(d, p);
@@ -231,7 +231,7 @@
     });
     canvas.addEventListener('pointerup', function (e) {
       var p = localPos(e);
-      if (draggingPointer) setYear(x2y(p.x, p.w), false);
+      if (draggingPointer) setYear(x2y(p.x, p.w), false, false);
       draggingPointer = false; draggingAxis = false;
     });
     canvas.addEventListener('pointerleave', function () {
@@ -252,13 +252,14 @@
       draw();
     }, { passive: false });
 
-    function setYear(y, dragging) {
+    function setYear(y, dragging, follow) {
       y = Math.max(MIN_Y, Math.min(MAX_Y, Math.round(y)));
       if (y === year) return;              // 年份未变则完全不触发，避免与外层互相回调
       year = y;
-      // 仅当「非拖动」（播放 / 点击胶囊 / 键盘）且年份滚出视野时才自动跟随；
-      // 拖动时间轴指针时保持当前视野，不做任何自动缩放。
-      if (!dragging && (y < view.min + (view.max - view.min) * 0.05 || y > view.min + (view.max - view.min) * 0.95)) {
+      // 仅在「非拖动」且允许跟随（播放 / 点击胶囊 / 键盘）且年份滚出视野时才自动跟随；
+      // 拖动时间轴指针（按下 / 移动 / 松开）一律 follow=false，保持当前视野，不做任何自动缩放或平移。
+      if (!dragging && follow !== false &&
+          (y < view.min + (view.max - view.min) * 0.05 || y > view.min + (view.max - view.min) * 0.95)) {
         var span = view.max - view.min;
         view.min = Math.max(MIN_Y, y - span / 2);
         view.max = Math.min(MAX_Y, view.min + span);
