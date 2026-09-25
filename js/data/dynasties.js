@@ -526,8 +526,9 @@
     {
       id: 'mongol', name: '蒙古（大蒙古国）', start: 1206, end: 1271, level: 3, color: '#7a8a5f',
       cap: { n: '哈拉和林（蒙古国）', lng: 102.8, lat: 47.2 },
-      desc: '成吉思汗统一草原诸部，西征中亚、南灭西夏与金，1271 年改国号大元。',
-      prov: '蒙', extra: [G.mongolia, G.dzungaria, G.centralAsia, G.outerNE]
+      desc: '成吉思汗统一草原诸部；1227 灭西夏、1234 灭金、1240 年代收吐蕃、1253 平大理，西征中亚，1271 年改国号大元。',
+      prov: '蒙 黑 吉 辽 宁 甘 陕 晋 冀 京 津 鲁 豫 苏 皖 青 藏 新',
+      extra: [G.mongolia, G.dzungaria, G.centralAsia, G.outerNW, G.outerNE, G.tanNu]
     },
 
     /* ---------------- 元明清 ---------------- */

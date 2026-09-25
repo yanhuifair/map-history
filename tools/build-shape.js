@@ -135,14 +135,14 @@ for (const d of D) {
   let merged; try { merged = pc.union(polys); } catch (e) { console.log('UNION FAIL', d.id, e.message); merged = polys; }
   const shape = [];
   for (const poly of merged) {
-    const rings = [];
-    for (const ring of poly) {
-      const s = simplify(ring, TOL);
-      if (s.length < 4 || ringArea(s) < MIN_AREA) continue;
-      if (s[0][0] !== s[s.length - 1][0] || s[0][1] !== s[s.length - 1][1]) s.push(s[0]);
-      rings.push(r4(s));
-    }
-    if (rings.length) shape.push(rings);
+    // 只保留外环：并集产生的「洞」几乎都是相邻单元边缘未完全重合的缝隙——
+    // 内蒙古各盟市之间、以及内蒙古与手工 extra（蒙古高原等）之间最明显，
+    // 最长的一条横跨 16° 经度（漠南一带），在图上渲染成月牙形暗色裂缝。
+    // 这些并非真实空洞（缝隙两侧都是该政权辖地），填充外环即可消除。
+    const s = simplify(poly[0], TOL);
+    if (s.length < 4 || ringArea(s) < MIN_AREA) continue;
+    if (s[0][0] !== s[s.length - 1][0] || s[0][1] !== s[s.length - 1][1]) s.push(s[0]);
+    shape.push([r4(s)]);
   }
   out[d.id] = shape;
   const lp = polylabel(shape);
