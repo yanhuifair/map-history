@@ -47,6 +47,60 @@ function simplify(pts, tol) {
 function ringArea(r) { let s = 0; for (let i = 0; i < r.length; i++) { const a = r[i], b = r[(i + 1) % r.length]; s += a[0] * b[1] - b[0] * a[1]; } return Math.abs(s) / 2; }
 function r4(r) { return r.map(q => [Math.round(q[0] * 1e4) / 1e4, Math.round(q[1] * 1e4) / 1e4]); }
 
+// ---- 标注点：最大内切圆圆心（polylabel 近似，格网 + 细化） ----
+// 为什么不用面积质心：含西域/漠北的大帝国（唐/元）质心会被偏远疆域整体拉向西北，
+// 落到帝国边缘；最大内切圆圆心总是落在「最厚实」的腹地，更贴合核心区。
+function insideRing(pt, r) {
+  let c = false;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+    const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+    if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) c = !c;
+  }
+  return c;
+}
+function insideShape(pt, polys) {
+  for (const poly of polys) {
+    if (!insideRing(pt, poly[0])) continue;
+    let hole = false;
+    for (let h = 1; h < poly.length; h++) if (insideRing(pt, poly[h])) { hole = true; break; }
+    if (!hole) return true;
+  }
+  return false;
+}
+function segDist2(px, py, ax, ay, bx, by) {
+  let x = ax, y = ay, dx = bx - x, dy = by - y;
+  if (dx !== 0 || dy !== 0) { const t = ((px - x) * dx + (py - y) * dy) / (dx * dx + dy * dy); if (t > 1) { x = bx; y = by; } else if (t > 0) { x += dx * t; y += dy * t; } }
+  return (px - x) ** 2 + (py - y) ** 2;
+}
+function polylabel(polys) {
+  let ring = null, bA = 0;
+  for (const poly of polys) {
+    const r = poly[0]; if (!r || r.length < 3) continue;
+    let a = 0; for (let i = 0; i < r.length; i++) { const p = r[i], q = r[(i + 1) % r.length]; a += p[0] * q[1] - q[0] * p[1]; }
+    a = Math.abs(a) / 2;
+    if (a > bA) { bA = a; ring = r; }
+  }
+  if (!ring) return null;
+  const d2 = (x, y) => {
+    let m = Infinity;
+    for (let i = 0; i < ring.length - 1; i++) { const v = segDist2(x, y, ring[i][0], ring[i][1], ring[i + 1][0], ring[i + 1][1]); if (v < m) m = v; }
+    return m;
+  };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of ring) { if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0]; if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1]; }
+  let cell = Math.max(maxX - minX, maxY - minY) / 32;
+  let bx = (minX + maxX) / 2, by = (minY + maxY) / 2, bd = -1;
+  for (let it = 0; it < 3; it++) {
+    for (let x = minX; x <= maxX; x += cell) for (let y = minY; y <= maxY; y += cell) {
+      if (!insideShape([x, y], polys)) continue;
+      const d = d2(x, y);
+      if (d > bd) { bd = d; bx = x; by = y; }
+    }
+    minX = bx - cell; maxX = bx + cell; minY = by - cell; maxY = by + cell; cell /= 5;
+  }
+  return [Math.round(bx * 1e4) / 1e4, Math.round(by * 1e4) / 1e4];
+}
+
 global.window = {};
 require(DYN);
 const D = window.DYNASTIES;
@@ -71,7 +125,7 @@ for (const code of MUNI) {
 const byProv = {}, byName = {};
 for (const u of units) { (byProv[u.prov] = byProv[u.prov] || []).push(u); if (!(u.n in byName)) byName[u.n] = u; }
 
-const out = {};
+const out = {}, labels = {};
 for (const d of D) {
   const del = {}; (d.cityDel || []).forEach(n => del[n] = 1);
   const polys = [];
@@ -91,8 +145,15 @@ for (const d of D) {
     if (rings.length) shape.push(rings);
   }
   out[d.id] = shape;
+  const lp = polylabel(shape);
+  if (lp) labels[d.id] = lp;
 }
 
-const js = '/* 政权外轮廓（自动生成，勿手工编辑；见 tools/build-shape.js）\n * 由 geo-city 市界 + dynasties.extra 做多边形并集，仅描外边界（无内部网格）。\n * 键为政权 id，值为 MultiPolygon: [ [外环, ...内环], ... ]。\n */\nwindow.GEO_SHAPE = ' + JSON.stringify(out) + ';\n';
+const js = '/* 政权外轮廓（自动生成，勿手工编辑；见 tools/build-shape.js）\n'
+  + ' * 由 geo-city 市界 + dynasties.extra 做多边形并集，仅描外边界（无内部网格）。\n'
+  + ' * GEO_SHAPE[id] = MultiPolygon: [ [外环, ...内环], ... ]；GEO_LABEL[id] = 政权名标注点（最大内切圆圆心）。\n'
+  + ' */\n'
+  + 'window.GEO_SHAPE = ' + JSON.stringify(out) + ';\n'
+  + 'window.GEO_LABEL = ' + JSON.stringify(labels) + ';\n';
 fs.writeFileSync(OUT, js);
-console.log('写出', OUT, (js.length / 1024).toFixed(0) + 'KB');
+console.log('写出', OUT, (js.length / 1024).toFixed(0) + 'KB', '标签数', Object.keys(labels).length);

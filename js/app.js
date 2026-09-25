@@ -112,15 +112,17 @@
   }
 
   // ---------- 区域标签（政权名标注在辖区中央） ----------
-  // 由预计算轮廓求「面积最大多边形」的质心作为标注点，并记录外接框用于屏幕尺寸判断。
+  // 标注点优先用构建期烘焙的「最大内切圆圆心」（GEO_LABEL）——它总落在疆域最厚实的腹地；
+  // 若无则回退「面积最大多边形的质心」。另记录外接框用于屏幕尺寸判断。
   var SHAPE = window.GEO_SHAPE || {};
+  var LABEL = window.GEO_LABEL || {};
   var labelPt = {}, labelBox = {};
   (function () {
     for (var id in SHAPE) {
       var polys = SHAPE[id];
       if (!polys || !polys.length) continue;
-      var bestPt = null, bestA = 0;
       var box = { minLng: 999, maxLng: -999, minLat: 999, maxLat: -999 };
+      var bestPt = null, bestA = 0;
       for (var i = 0; i < polys.length; i++) {
         var ring = polys[i][0];
         if (!ring || ring.length < 3) continue;
@@ -137,7 +139,8 @@
         a /= 2;
         if (Math.abs(a) > bestA) { bestA = Math.abs(a); bestPt = [cx / (6 * a), cy / (6 * a)]; }
       }
-      if (bestPt) { labelPt[id] = bestPt; labelBox[id] = box; }
+      var pt = LABEL[id] || bestPt;
+      if (pt) { labelPt[id] = pt; labelBox[id] = box; }
     }
   })();
 
@@ -146,7 +149,7 @@
     var seen = {};
     for (var i = 0; i < list.length; i++) {
       var d = list[i];
-      if (!labelPt[d.id]) continue;
+      if (!d.cap && !labelPt[d.id]) continue;
       seen[d.id] = 1;
       var el = regionLabels[d.id];
       if (!el) {
@@ -163,17 +166,25 @@
     }
   }
 
+  // 区域名锚点用「都城」——都城即政权治所，对中华王朝必在腹地（唐→长安、清→北京），
+  // 比几何质心/最大内切圆更贴切（后者会被西域、漠北等偏远疆域整体拉偏）。
   function updateRegionPositions() {
     for (var id in regionLabels) {
       var el = regionLabels[id];
-      var pt = labelPt[id], box = labelBox[id];
-      if (!pt) continue;
-      var p = globe.project(pt[0], pt[1]);
-      // 区域内屏幕尺寸太小则不标注，避免杂乱
-      var c1 = globe.project(box.minLng, box.minLat), c2 = globe.project(box.maxLng, box.maxLat);
-      var big = Math.abs(c2.x - c1.x) > 44 || Math.abs(c2.y - c1.y) > 30;
+      var d = findById(id);
+      if (!d) continue;
+      var anchor = d.cap ? [d.cap.lng, d.cap.lat] : labelPt[id];
+      if (!anchor) continue;
+      var p = globe.project(anchor[0], anchor[1]);
+      // 区域屏幕尺寸太小则不标注，避免杂乱
+      var big = true, box = labelBox[id];
+      if (box) {
+        var c1 = globe.project(box.minLng, box.minLat), c2 = globe.project(box.maxLng, box.maxLat);
+        big = Math.abs(c2.x - c1.x) > 44 || Math.abs(c2.y - c1.y) > 30;
+      }
       el.style.opacity = (p.visible && big) ? '1' : '0';
-      el.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0) translate(-50%,-50%)';
+      // 标在都城正上方，与都城标签上下错开
+      el.style.transform = 'translate3d(' + p.x + 'px,' + (p.y - 28) + 'px,0) translate(-50%,-50%)';
     }
   }
 
