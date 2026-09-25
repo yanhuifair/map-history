@@ -155,9 +155,21 @@
       if (!el) {
         el = document.createElement('div');
         el.className = 'region-label';
-        el.textContent = d.name;
+        el.dataset.id = d.id;
         el.style.color = d.color;
         labelLayer.appendChild(el);
+        // 记录全名与短名（去掉「（…）」，如「楚（十国）」→「楚」）的自然尺寸，
+        // 供按色块大小自适应：先试全名，再试短名，都装不下才隐藏。
+        el._full = d.name;
+        el._short = d.name.replace(/（[^）]*）$/, '');
+        el.textContent = el._full;
+        el._wFull = el.offsetWidth || 60; el._hFull = el.offsetHeight || 17;
+        if (el._short !== el._full) {
+          el.textContent = el._short;
+          el._wShort = el.offsetWidth || 40; el._hShort = el.offsetHeight || 17;
+          el.textContent = el._full;
+        } else { el._wShort = el._wFull; el._hShort = el._hFull; }
+        el._cur = el._full;
         regionLabels[d.id] = el;
       }
     }
@@ -169,20 +181,31 @@
   // 标注点 = 色块「正中」。用最大内切圆圆心（GEO_LABEL）而非面积质心：
   // 后者会被西域、漠北等细长延伸区的面积拖偏（唐的「唐」曾落到新疆东部），
   // 而最大内切圆圆心始终落在色块最厚实的腹地正中。
+  // 另外：文字像素尺寸固定，而色块随缩放变小——装不下时必须缩小或隐藏，
+  // 否则「楚（十国）」这类长名会漂出色块之外。
   function updateRegionPositions() {
     for (var id in regionLabels) {
       var el = regionLabels[id];
       var pt = labelPt[id];
       if (!pt) continue;
       var p = globe.project(pt[0], pt[1]);
-      // 区域屏幕尺寸太小则不标注，避免杂乱
-      var big = true, box = labelBox[id];
+      var show = p.visible, k = 1;
+      var box = labelBox[id];
       if (box) {
         var c1 = globe.project(box.minLng, box.minLat), c2 = globe.project(box.maxLng, box.maxLat);
-        big = Math.abs(c2.x - c1.x) > 44 || Math.abs(c2.y - c1.y) > 30;
+        var bw = Math.abs(c2.x - c1.x), bh = Math.abs(c2.y - c1.y);
+        var fit = function (w, h) { return Math.min(1, bw / (w + 10), bh / (h + 6)); };
+        k = fit(el._wFull, el._hFull);
+        var want = el._full;
+        if (k < 0.72 && el._short !== el._full) {
+          var k2 = fit(el._wShort, el._hShort);
+          if (k2 >= 0.72) { k = k2; want = el._short; }
+        }
+        if (el._cur !== want) { el.textContent = want; el._cur = want; }
+        if (k < 0.72) show = false;   // 连短名都装不下就整块隐藏，避免文字漂出色块
       }
-      el.style.opacity = (p.visible && big) ? '1' : '0';
-      el.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0) translate(-50%,-50%)';
+      el.style.opacity = show ? '1' : '0';
+      el.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0) translate(-50%,-50%) scale(' + k.toFixed(3) + ')';
     }
   }
 
