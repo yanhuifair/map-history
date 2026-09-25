@@ -77,6 +77,25 @@ for (const d of D) {
 // ---------- 2. 几何层 ----------
 function ringArea(r) { let s = 0; for (let i = 0; i < r.length; i++) { const a = r[i], b = r[(i + 1) % r.length]; s += a[0] * b[1] - b[0] * a[1]; } return Math.abs(s) / 2; }
 function polyCentroid(r) { let a = 0, cx = 0, cy = 0; for (let i = 0; i < r.length; i++) { const p = r[i], q = r[(i + 1) % r.length]; const f = p[0] * q[1] - q[0] * p[1]; a += f; cx += (p[0] + q[0]) * f; cy += (p[1] + q[1]) * f; } a /= 2; return Math.abs(a) < 1e-12 ? [r[0][0], r[0][1]] : [cx / (6 * a), cy / (6 * a)]; }
+// 射线法：点是否在环内
+function inRing(pt, r) {
+  let c = false;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+    const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+    if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) c = !c;
+  }
+  return c;
+}
+// 点在（多）多边形内：至少在一个外环内、且不在其任一内环里
+function pointInShape(pt, polys) {
+  for (const poly of polys) {
+    if (!inRing(pt, poly[0])) continue;
+    let inHole = false;
+    for (let k = 1; k < poly.length; k++) if (inRing(pt, poly[k])) { inHole = true; break; }
+    if (!inHole) return true;
+  }
+  return false;
+}
 
 for (const d of D) {
   const polys = S[d.id];
@@ -84,6 +103,12 @@ for (const d of D) {
   let holes = 0; for (const poly of polys) holes += poly.length - 1;
   if (holes) P('存在内环(会渲染成暗缝)', d.id + ' 洞=' + holes);
   if (!L[d.id]) P('缺标注点', d.id);
+  // 都城点必须落在自己的轮廓内（否则都城圆点/标签会飘到别人地盘或海上）
+  if (d.cap && !pointInShape([d.cap.lng, d.cap.lat], polys))
+    P('都城在疆域外', d.id + ' ' + d.cap.n + ' (' + d.cap.lng + ',' + d.cap.lat + ')');
+  // 都城坐标必须落在合理经纬范围（中国及周边）
+  if (d.cap && (d.cap.lng < 60 || d.cap.lng > 145 || d.cap.lat < 15 || d.cap.lat > 55))
+    P('都城坐标越界', d.id + ' (' + d.cap.lng + ',' + d.cap.lat + ')');
 
   // 各连通块面积 + 质心
   const comps = polys.map(poly => ({ area: ringArea(poly[0]), c: polyCentroid(poly[0]) })).sort((a, b) => b.area - a.area);
