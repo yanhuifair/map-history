@@ -26,6 +26,8 @@
 
     var MIN_Y = opts.minYear !== undefined ? opts.minYear : -2150;
     var MAX_Y = opts.maxYear !== undefined ? opts.maxYear : 2030;
+    // 年份可选上限（与外部 app 的年份钳制保持一致；视图/坐标轴仍可用 MAX_Y 留边）
+    var Y_MAX = opts.yearMax !== undefined ? opts.yearMax : MAX_Y;
     var view = { min: MIN_Y, max: MAX_Y };
     var year = -2070;
     var hover = null;
@@ -253,7 +255,7 @@
     }, { passive: false });
 
     function setYear(y, dragging, follow) {
-      y = Math.max(MIN_Y, Math.min(MAX_Y, Math.round(y)));
+      y = Math.max(MIN_Y, Math.min(Y_MAX, Math.round(y)));
       if (y === year) return;              // 年份未变则完全不触发，避免与外层互相回调
       year = y;
       // 仅在「非拖动」且允许跟随（播放 / 点击胶囊 / 键盘）且年份滚出视野时才自动跟随；

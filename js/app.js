@@ -29,8 +29,11 @@
     canvas: $('timeline'),
     polities: D,
     minYear: minY,
-    maxYear: maxY,
-    onChange: function (y) { setYear(y); },
+    maxYear: maxY,      // 视图/坐标轴可到 maxY（留边）
+    yearMax: maxY - 4,  // 年份可选上限，与下方 setYear 的钳制一致
+    // 时间轴自身发起的年份变化：标记 fromTimeline=true，避免 app 再回灌 timeline.setYear
+    // （否则会绕过 y===year 早退并触发自动居中/缩放）
+    onChange: function (y) { setYear(y, true); },
     onHover: onHoverTip
   });
 
