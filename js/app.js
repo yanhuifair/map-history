@@ -241,7 +241,7 @@
   toggle('t-province', 'province', true);
   toggle('t-grid', 'grid', true);
   var rotBtn = $('t-rotate');
-  rotBtn.classList.add('on');
+  rotBtn.classList.toggle('on', globe.getAutoRotate());
   rotBtn.addEventListener('click', function () {
     var on = !globe.getAutoRotate();
     globe.setAutoRotate(on);

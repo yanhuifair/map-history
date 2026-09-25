@@ -256,8 +256,9 @@
       y = Math.max(MIN_Y, Math.min(MAX_Y, Math.round(y)));
       if (y === year) return;              // 年份未变则完全不触发，避免与外层互相回调
       year = y;
-      // 滚出视野时自动跟随
-      if (y < view.min + (view.max - view.min) * 0.05 || y > view.min + (view.max - view.min) * 0.95) {
+      // 仅当「非拖动」（播放 / 点击胶囊 / 键盘）且年份滚出视野时才自动跟随；
+      // 拖动时间轴指针时保持当前视野，不做任何自动缩放。
+      if (!dragging && (y < view.min + (view.max - view.min) * 0.05 || y > view.min + (view.max - view.min) * 0.95)) {
         var span = view.max - view.min;
         view.min = Math.max(MIN_Y, y - span / 2);
         view.max = Math.min(MAX_Y, view.min + span);

@@ -1,37 +1,34 @@
 /* =============================================================
- * Globe —— 球面历史疆域渲染
- * 采用「等距圆柱投影贴图的三维球体」方案：
- *   底图层（海洋 / 世界陆地 / 经纬网 / 省界）只绘制一次并缓存；
- *   疆域层按需重绘（仅在政权集合变化时），避免逐帧上传大纹理。
+ * Map2D —— 等距圆柱（Plate Carrée）二维历史疆域地图
+ * 底图层（海洋 / 世界陆地 / 经纬网 / 省界）只绘制一次并缓存；
+ * 疆域层按需重绘（仅在政权集合变化时），避免逐帧重画大纹理。
+ *
+ * 对外接口与旧版 Globe 保持一致，app.js 无需大改：
+ *   new Globe({container, onFrame})
+ *   setPolities / setLayer / flyTo / project / focusChina / zoom
+ *   getAutoRotate / setAutoRotate / container
  * ============================================================= */
 (function () {
   var TEX_W = 4096, TEX_H = 2048;
   var DEG = Math.PI / 180;
 
-  // 经纬度 -> 单位球面坐标（与 SphereGeometry 默认 UV 映射一致）
-  function llToVec3(lng, lat, r) {
-    r = r === undefined ? 1 : r;
-    var la = lat * DEG, lo = lng * DEG;
-    return new THREE.Vector3(
-      r * Math.cos(la) * Math.cos(lo),
-      r * Math.sin(la),
-      -r * Math.cos(la) * Math.sin(lo)
-    );
-  }
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
   function Globe(opts) {
     var container = opts.container;
     var self = this;
 
-    // ---------- three.js 基础设施 ----------
-    var scene = new THREE.Scene();
-    var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
-    var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0x000000, 0);
-    container.appendChild(renderer.domElement);
+    // ---------- 可见 2D 画布 ----------
+    var canvas = document.createElement('canvas');
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.cursor = 'grab';
+    canvas.style.touchAction = 'none';
+    container.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
 
-    // ---------- 贴图 canvas ----------
+    // ---------- 离屏贴图画布（等距圆柱，与地理数据同坐标系） ----------
     var baseCanvas = document.createElement('canvas');
     baseCanvas.width = TEX_W; baseCanvas.height = TEX_H;
     var bctx = baseCanvas.getContext('2d');
@@ -40,80 +37,15 @@
     texCanvas.width = TEX_W; texCanvas.height = TEX_H;
     var tctx = texCanvas.getContext('2d');
 
-    var texture = new THREE.CanvasTexture(texCanvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    texture.generateMipmaps = false;
-    if ('colorSpace' in texture) texture.colorSpace = THREE.SRGBColorSpace;
-
-    // ---------- 地球本体 ----------
-    var earthMat = new THREE.MeshPhongMaterial({
-      map: texture,
-      shininess: 6,
-      specular: new THREE.Color(0x101820),
-      emissive: new THREE.Color(0x0a0f18),
-      emissiveIntensity: 0.55
-    });
-    var earth = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), earthMat);
-    scene.add(earth);
-
-    // ---------- 大气辉光 ----------
-    var atmMat = new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: new THREE.Color(0x4a86e8) } },
-      vertexShader: [
-        'varying vec3 vNormal;',
-        'void main(){',
-        '  vNormal = normalize(normalMatrix * normal);',
-        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-        '}'
-      ].join('\n'),
-      fragmentShader: [
-        'uniform vec3 uColor;',
-        'varying vec3 vNormal;',
-        'void main(){',
-        '  float i = pow(max(0.0, 0.78 - dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.6);',
-        '  gl_FragColor = vec4(uColor, 1.0) * i * 0.85;',
-        '}'
-      ].join('\n'),
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false
-    });
-    var atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.21, 64, 48), atmMat);
-    scene.add(atmosphere);
-
-    // ---------- 灯光 ----------
-    scene.add(new THREE.AmbientLight(0xffffff, 0.92));
-    var headLight = new THREE.DirectionalLight(0xffffff, 0.55);
-    scene.add(headLight);
-    var rimLight = new THREE.DirectionalLight(0x6fa8ff, 0.22);
-    scene.add(rimLight);
-
-    // ---------- 星空 ----------
-    (function () {
-      var N = 1800, pos = new Float32Array(N * 3);
-      for (var i = 0; i < N; i++) {
-        var u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2;
-        var r = 40 + Math.random() * 30;
-        var s = Math.sqrt(1 - u * u);
-        pos[i * 3] = r * s * Math.cos(a);
-        pos[i * 3 + 1] = r * u;
-        pos[i * 3 + 2] = r * s * Math.sin(a);
-      }
-      var g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      var m = new THREE.PointsMaterial({ color: 0x9fb4d8, size: 0.28, sizeAttenuation: true, transparent: true, opacity: 0.75 });
-      scene.add(new THREE.Points(g, m));
-    })();
-
-    // ---------- 视图状态 ----------
-    var view = { lng: 105, lat: 22, dist: 3.0 };
-    var target = { lng: 105, lat: 22, dist: 3.0 };
-    var autoRotate = true;
+    // ---------- 视图状态（map 像素 / 经纬度 / 缩放） ----------
+    var view = { lng: 105, lat: 34, scale: 1 };    // 当前
+    var target = { lng: 105, lat: 34, scale: 1 };  // 目标（平滑跟随）
+    var minScale = 0.25, maxScale = 6;
+    var autoRotate = false;
     var showProvince = true, showGrid = true;
-    var dragging = false, lastX = 0, lastY = 0, vLng = 0, vLat = 0;
-    var lastInteract = 0;
+    var dragging = false, lastX = 0, lastY = 0, lastInteract = 0;
+    var needsRedraw = true;
+    var inited = false;
 
     // ---------- 数据 ----------
     var GEO = window.GEO_BASE;
@@ -121,16 +53,18 @@
     for (var i = 0; i < GEO.provinces.length; i++) provByName[GEO.provinces[i].n] = GEO.provinces[i];
 
     var dynProvCache = {};   // 省名 -> Path2D
-    var dynPolyCache = {};   // 政权 id -> { paths: [ {path, level} ], key }
+    var dynPolyCache = {};   // 政权 id -> Path2D
     var currentKey = '';
     var currentPolities = [];
     var baseKey = '';
 
-    // ---------- 投影工具 ----------
+    // ---------- 投影工具（贴图像素空间） ----------
     function px(lng) { return (lng + 180) / 360 * TEX_W; }
     function py(lat) { return (90 - lat) / 180 * TEX_H; }
+    function mapX(lng) { return (lng + 180) / 360 * TEX_W; }
+    function mapY(lat) { return (90 - lat) / 180 * TEX_H; }
 
-    function pathFromRings(rings, ctx) {
+    function pathFromRings(rings) {
       var p = new Path2D();
       for (var i = 0; i < rings.length; i++) {
         var r = rings[i];
@@ -208,7 +142,7 @@
         c.beginPath(); c.moveTo(0, py(0)); c.lineTo(TEX_W, py(0)); c.stroke();
       }
 
-      // 世界陆地（仅作球面背景，不含任何国界）
+      // 世界陆地（仅作背景，不含任何国界）
       var land = GEO.world;
       c.lineWidth = Math.max(1, TEX_W / 2200);
       c.strokeStyle = 'rgba(110,140,180,0.45)';
@@ -216,7 +150,7 @@
       for (var i = 0; i < land.length; i++) {
         var r = land[i];
         if (r.length < 3) continue;
-        // 跳过南极洲（等距圆柱投影下会横跨整幅）
+        // 跳过南极洲（等距圆柱投影下会横跨整幅底部）
         var maxLat = -90;
         for (var q = 0; q < r.length; q++) if (r[q][1] > maxLat) maxLat = r[q][1];
         if (maxLat < -55) continue;
@@ -330,7 +264,7 @@
         c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2); c.fill(); c.stroke();
         c.restore();
       }
-      texture.needsUpdate = true;
+      needsRedraw = true;
     }
 
     // ---------- 对外接口 ----------
@@ -338,15 +272,10 @@
       currentPolities = polities;
       var key = '';
       for (var i = 0; i < polities.length; i++) key += polities[i].id + ',';
-      if (key !== currentKey || baseKey !== (showGrid ? 'g' : '') + (showProvince ? 'p' : '')) {
-        drawBase();
-        // 底图重绘后必须整体重画
-        currentKey = '';
-      }
-      if (key !== currentKey) {
-        currentKey = key;
-        drawTerritories(polities);
-      }
+      var bk = (showGrid ? 'g' : '') + (showProvince ? 'p' : '');
+      if (bk !== baseKey) { drawBase(); currentKey = ''; }
+      if (key !== currentKey) { currentKey = key; drawTerritories(polities); }
+      else needsRedraw = true;
     };
 
     self.setLayer = function (name, on) {
@@ -355,88 +284,127 @@
       drawTerritories(currentPolities);
     };
 
-    self.setAutoRotate = function (on) { autoRotate = on; };
+    self.setAutoRotate = function (on) { autoRotate = on; lastInteract = performance.now(); };
     self.getAutoRotate = function () { return autoRotate; };
 
     self.focusChina = function () {
-      target.lng = 105; target.lat = 22; target.dist = 2.75;
-      vLng = vLat = 0;
-      lastInteract = 0;
+      fitChina();
+      lastInteract = performance.now();
     };
     // 飞向指定经纬度（用于点击都城 / 政权后居中）
-    self.flyTo = function (lng, lat, dist) {
+    self.flyTo = function (lng, lat) {
       // 归一化到与当前视角最近的等价经度，避免绕远路
       var t = target.lng;
       while (lng - t > 180) lng -= 360;
       while (t - lng > 180) lng += 360;
       target.lng = lng;
-      target.lat = Math.max(-80, Math.min(80, lat));
-      if (dist) target.dist = Math.max(1.5, Math.min(5.5, dist));
-      vLng = vLat = 0;
+      target.lat = clamp(lat, -80, 80);
       lastInteract = performance.now();
     };
     self.zoom = function (f) {
-      target.dist = Math.max(1.5, Math.min(5.5, target.dist * f));
+      target.scale = clamp(target.scale * f, minScale, maxScale);
       lastInteract = performance.now();
     };
 
-    // 经纬度 -> 屏幕坐标（用于 HTML 标签叠加）
-    var _v = new THREE.Vector3();
+    // 经纬度 -> 屏幕坐标（用于 HTML 标签叠加；屏幕坐标与 #stage 同系）
     self.project = function (lng, lat) {
-      var p = llToVec3(lng, lat, 1);
-      // 可见性：法线与视线夹角
-      var toCam = new THREE.Vector3().copy(camera.position).sub(p).normalize();
-      var facing = p.clone().normalize().dot(toCam);
-      _v.copy(p).project(camera);
-      var rect = renderer.domElement.getBoundingClientRect();
-      return {
-        x: (_v.x * 0.5 + 0.5) * rect.width,
-        y: (-_v.y * 0.5 + 0.5) * rect.height,
-        visible: facing > 0.12 && _v.z < 1
-      };
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      var sx = w / 2 + (mapX(lng) - mapX(view.lng)) * view.scale;
+      var sy = h / 2 + (mapY(lat) - mapY(view.lat)) * view.scale;
+      var visible = sx >= 0 && sx <= w && sy >= 0 && sy <= h;
+      return { x: sx, y: sy, visible: visible };
     };
-
-    // ---------- 交互 ----------
-    var el = renderer.domElement;
-    el.style.display = 'block';
-    el.style.width = '100%';
-    el.style.height = '100%';
-    el.style.cursor = 'grab';
-    el.style.touchAction = 'none';
-
-    el.addEventListener('pointerdown', function (e) {
-      dragging = true; el.style.cursor = 'grabbing';
-      lastX = e.clientX; lastY = e.clientY; vLng = vLat = 0;
-      el.setPointerCapture(e.pointerId);
-    });
-    el.addEventListener('pointermove', function (e) {
-      if (!dragging) return;
-      var dx = e.clientX - lastX, dy = e.clientY - lastY;
-      lastX = e.clientX; lastY = e.clientY;
-      var k = 0.18 * (target.dist / 3);
-      target.lng -= dx * k;
-      target.lat = Math.max(-85, Math.min(85, target.lat + dy * k));
-      vLng = -dx * k; vLat = dy * k;
-      lastInteract = performance.now();
-    });
-    el.addEventListener('pointerup', function (e) {
-      dragging = false; el.style.cursor = 'grab';
-      lastInteract = performance.now();
-    });
-    el.addEventListener('wheel', function (e) {
-      e.preventDefault();
-      target.dist = Math.max(1.5, Math.min(5.5, target.dist * (1 + (e.deltaY > 0 ? 0.12 : -0.12))));
-      lastInteract = performance.now();
-    }, { passive: false });
 
     // ---------- 尺寸 ----------
     function resize() {
       var w = container.clientWidth, h = container.clientHeight;
       if (!w || !h) return;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h, false);
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+      if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw; canvas.height = bh;
+        needsRedraw = true;
+      }
+      minScale = (w / TEX_W) * 0.95;   // 可缩放至完整显示全球
+      if (maxScale < minScale * 4) maxScale = minScale * 4;
+      if (!inited) { fitChina(); inited = true; }
     }
+
+    function fitChina() {
+      var w = canvas.clientWidth || container.clientWidth;
+      var h = canvas.clientHeight || container.clientHeight;
+      if (!w || !h) return;
+      target.lng = 105; target.lat = 34;
+      var sw = w / (100 / 360 * TEX_W);   // 横向容纳约 100°
+      var sh = h / (60 / 180 * TEX_H);    // 纵向容纳约 60°
+      target.scale = Math.min(sw, sh) * 0.96;
+      target.scale = clamp(target.scale, minScale, maxScale);
+    }
+
+    // ---------- 渲染 ----------
+    function render() {
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      if (!w || !h) return;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      // 背景（海洋外留白区域）
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#04060c';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      var tx = (w / 2 - mapX(view.lng) * view.scale) * dpr;
+      var ty = (h / 2 - mapY(view.lat) * view.scale) * dpr;
+      ctx.setTransform(view.scale * dpr, 0, 0, view.scale * dpr, tx, ty);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(texCanvas, 0, 0);
+
+      // 轻量边框（地图边缘提示）
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    // ---------- 交互 ----------
+    canvas.addEventListener('pointerdown', function (e) {
+      dragging = true; canvas.style.cursor = 'grabbing';
+      lastX = e.clientX; lastY = e.clientY;
+      canvas.setPointerCapture(e.pointerId);
+      lastInteract = performance.now();
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - lastX, dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      // 内容跟随手指：拖动多少屏幕像素，中心就反向移动等量的经度/纬度
+      var dLng = dx / (view.scale * (TEX_W / 360));
+      var dLat = dy / (view.scale * (TEX_H / 180));
+      target.lng -= dLng;
+      target.lat = clamp(target.lat + dLat, -85, 85);
+      lastInteract = performance.now();
+    });
+    canvas.addEventListener('pointerup', function (e) {
+      dragging = false; canvas.style.cursor = 'grab';
+      lastInteract = performance.now();
+    });
+    canvas.addEventListener('pointercancel', function () {
+      dragging = false; canvas.style.cursor = 'grab';
+    });
+    canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      var rect = canvas.getBoundingClientRect();
+      var sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+      var factor = e.deltaY > 0 ? 0.9 : 1.1;
+      var newScale = clamp(target.scale * factor, minScale, maxScale);
+      // 以光标为锚点缩放：缩放前后光标下的地图点保持不变
+      var mapXc = (sx - w / 2) / target.scale + mapX(target.lng);
+      var mapYc = (sy - h / 2) / target.scale + mapY(target.lat);
+      target.lng = (mapXc - (sx - w / 2) / newScale) * 360 / TEX_W - 180;
+      target.lat = 90 - (mapYc - (sy - h / 2) / newScale) * 180 / TEX_H;
+      target.lat = clamp(target.lat, -85, 85);
+      target.scale = newScale;
+      lastInteract = performance.now();
+    }, { passive: false });
+
     window.addEventListener('resize', resize);
 
     // ---------- 主循环 ----------
@@ -444,39 +412,32 @@
       requestAnimationFrame(tick);
       resize();
 
-      // 惯性 + 自动自转
-      if (!dragging) {
-        target.lng += vLng * 0.92;
-        target.lat = Math.max(-85, Math.min(85, target.lat + vLat * 0.92));
-        vLng *= 0.90; vLat *= 0.90;
-        if (Math.abs(vLng) < 0.002) vLng = 0;
-        if (Math.abs(vLat) < 0.002) vLat = 0;
-        if (autoRotate && !vLng && !vLat && performance.now() - lastInteract > 1500) {
-          target.lng += 0.055;
-        }
-      }
       // 平滑跟随
-      view.lng += (target.lng - view.lng) * 0.16;
-      view.lat += (target.lat - view.lat) * 0.16;
-      view.dist += (target.dist - view.dist) * 0.14;
+      var moving = false;
+      view.lng += (target.lng - view.lng) * 0.22;
+      view.lat += (target.lat - view.lat) * 0.22;
+      view.scale += (target.scale - view.scale) * 0.22;
+      if (Math.abs(target.lng - view.lng) > 0.002 ||
+          Math.abs(target.lat - view.lat) > 0.002 ||
+          Math.abs(target.scale - view.scale) > 0.0005) moving = true;
 
-      var p = llToVec3(view.lng, view.lat, view.dist);
-      camera.position.copy(p);
-      camera.lookAt(0, 0, 0);
+      // 自动漂移（仅在启用且空闲时）
+      if (autoRotate && !dragging && !moving && performance.now() - lastInteract > 1500) {
+        target.lng += 0.06;
+        moving = true;
+      }
 
-      headLight.position.copy(camera.position);
-      rimLight.position.set(-camera.position.z, camera.position.y * 0.4, camera.position.x);
-
-      renderer.render(scene, camera);
+      if (moving || needsRedraw) { render(); needsRedraw = false; }
       if (opts.onFrame) opts.onFrame();
     }
 
     drawBase();
     resize();
+    fitChina();
+    view.lng = target.lng; view.lat = target.lat; view.scale = target.scale;
     tick();
     self.container = container;
   }
 
   window.Globe = Globe;
-  window.llToVec3 = llToVec3;
 })();

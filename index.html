@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>中国历史疆域 · 时空地球</title>
+<title>中国历史疆域 · 时空地图</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="app">
   <header id="top">
     <div class="brand">
-      <h1>中国历史疆域 · 时空地球</h1>
-      <span class="sub">夏（前 2070）至今 · 拖动时间轴，看疆域在球面上演变</span>
+      <h1>中国历史疆域 · 时空地图</h1>
+      <span class="sub">夏（前 2070）至今 · 拖动时间轴，看疆域在平面地图上演变</span>
     </div>
     <div id="chips-row" class="chips-row"></div>
     <div class="tools">
       <button id="t-province" title="省级参考底图">省界</button>
       <button id="t-grid" title="经纬网">经纬</button>
-      <button id="t-rotate" title="自动自转">自转</button>
+      <button id="t-rotate" title="自动漂移">漂移</button>
       <i class="sep"></i>
       <button id="t-home" title="回到中国视角">◎</button>
       <button id="t-in" title="放大">＋</button>
@@ -34,7 +34,7 @@
     </div>
     <aside id="panel">
       <div id="panel-main"></div>
-      <div class="hint">拖动球面旋转 · 滚轮缩放 · ←/→ 微调年份 · 空格播放</div>
+      <div class="hint">拖动平移地图 · 滚轮缩放 · ←/→ 微调年份 · 空格播放</div>
     </aside>
   </main>
 
@@ -52,7 +52,6 @@
 </div>
 <div id="tip"></div>
 
-<script src="js/vendor/three.min.js"></script>
 <script src="js/data/geo-base.js"></script>
 <script src="js/data/dynasties.js"></script>
 <script src="js/globe.js"></script>
