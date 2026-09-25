@@ -80,7 +80,8 @@
       if (!el) {
         el = document.createElement('div');
         el.className = 'cap-label';
-        el.innerHTML = '<i style="background:' + d.color + '"></i><b>' + d.name + '</b><span>' + d.cap.n + '</span>';
+        // 政权名已由「区域标签」标注在辖区中央，此处只显示都城名
+        el.innerHTML = '<i style="background:' + d.color + '"></i><span>' + d.cap.n + '</span>';
         el.addEventListener('click', function (d) {
           return function () { globe.flyTo(d.cap.lng, d.cap.lat); };
         }(d));
@@ -108,6 +109,72 @@
   function findById(id) {
     for (var i = 0; i < D.length; i++) if (D[i].id === id) return D[i];
     return null;
+  }
+
+  // ---------- 区域标签（政权名标注在辖区中央） ----------
+  // 由预计算轮廓求「面积最大多边形」的质心作为标注点，并记录外接框用于屏幕尺寸判断。
+  var SHAPE = window.GEO_SHAPE || {};
+  var labelPt = {}, labelBox = {};
+  (function () {
+    for (var id in SHAPE) {
+      var polys = SHAPE[id];
+      if (!polys || !polys.length) continue;
+      var bestPt = null, bestA = 0;
+      var box = { minLng: 999, maxLng: -999, minLat: 999, maxLat: -999 };
+      for (var i = 0; i < polys.length; i++) {
+        var ring = polys[i][0];
+        if (!ring || ring.length < 3) continue;
+        var a = 0, cx = 0, cy = 0;
+        for (var j = 0; j < ring.length; j++) {
+          var p = ring[j], q = ring[(j + 1) % ring.length];
+          var f = p[0] * q[1] - q[0] * p[1];
+          a += f; cx += (p[0] + q[0]) * f; cy += (p[1] + q[1]) * f;
+          if (p[0] < box.minLng) box.minLng = p[0];
+          if (p[0] > box.maxLng) box.maxLng = p[0];
+          if (p[1] < box.minLat) box.minLat = p[1];
+          if (p[1] > box.maxLat) box.maxLat = p[1];
+        }
+        a /= 2;
+        if (Math.abs(a) > bestA) { bestA = Math.abs(a); bestPt = [cx / (6 * a), cy / (6 * a)]; }
+      }
+      if (bestPt) { labelPt[id] = bestPt; labelBox[id] = box; }
+    }
+  })();
+
+  var regionLabels = {};
+  function syncRegionLabels(list) {
+    var seen = {};
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i];
+      if (!labelPt[d.id]) continue;
+      seen[d.id] = 1;
+      var el = regionLabels[d.id];
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'region-label';
+        el.textContent = d.name;
+        el.style.color = d.color;
+        labelLayer.appendChild(el);
+        regionLabels[d.id] = el;
+      }
+    }
+    for (var id in regionLabels) {
+      if (!seen[id]) { labelLayer.removeChild(regionLabels[id]); delete regionLabels[id]; }
+    }
+  }
+
+  function updateRegionPositions() {
+    for (var id in regionLabels) {
+      var el = regionLabels[id];
+      var pt = labelPt[id], box = labelBox[id];
+      if (!pt) continue;
+      var p = globe.project(pt[0], pt[1]);
+      // 区域内屏幕尺寸太小则不标注，避免杂乱
+      var c1 = globe.project(box.minLng, box.minLat), c2 = globe.project(box.maxLng, box.maxLat);
+      var big = Math.abs(c2.x - c1.x) > 44 || Math.abs(c2.y - c1.y) > 30;
+      el.style.opacity = (p.visible && big) ? '1' : '0';
+      el.style.transform = 'translate3d(' + p.x + 'px,' + p.y + 'px,0) translate(-50%,-50%)';
+    }
   }
 
   // ---------- 信息面板 ----------
@@ -158,6 +225,7 @@
     var list = activeAt(y);
     globe.setPolities(list);
     syncLabels(list);
+    syncRegionLabels(list);
     renderPanel(list);
     markChips(list);
   }
@@ -289,6 +357,7 @@
       setYear(ny);
     }
     updateLabelPositions();
+    updateRegionPositions();
   }
 
   // ---------- 启动 ----------
