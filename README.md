@@ -22,7 +22,7 @@ A single-page interactive visualization of **all major states and dynasties in C
 
 Each polity = a set of modern provinces (`prov`) + optional hand-drawn polygons for areas beyond the modern border (`extra`: Mongolian plateau, Outer Manchuria, Central Asia, northern Korea, Jiaozhi/Annam, Hexi corridor, …).
 
-Historical extents are **approximate visualizations** of a polity's main / peak territory — not boundary claims. The basemap coastline uses Natural Earth 110m land (public domain, no borders); China province boundaries come from DataV.GeoAtlas.
+Historical extents are **approximate visualizations** of a polity's main / peak territory — not boundary claims. The basemap coastline uses Natural Earth 50m land (public domain, no borders), with the China area refilled from province boundaries so coastlines match exactly; China province boundaries come from DataV.GeoAtlas.
 
 ## Run
 

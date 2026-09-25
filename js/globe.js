@@ -214,10 +214,11 @@
         c.fill(); c.stroke();
       }
 
-      // 中国省级参考底图
+      // 中国省级参考底图（以省界数据填充，保证海岸线与世界底图的差异以省界为准）
       if (showProvince) {
         c.lineWidth = Math.max(1, TEX_W / 3000);
         c.strokeStyle = 'rgba(150,175,210,0.30)';
+        c.fillStyle = '#1b2739';
         for (var k = 0; k < GEO.provinces.length; k++) {
           var rings = GEO.provinces[k].p;
           for (var m = 0; m < rings.length; m++) {
@@ -227,6 +228,7 @@
             c.moveTo(px(rr[0][0]), py(rr[0][1]));
             for (var n = 1; n < rr.length; n++) c.lineTo(px(rr[n][0]), py(rr[n][1]));
             c.closePath();
+            c.fill();
             c.stroke();
           }
         }

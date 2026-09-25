@@ -289,7 +289,9 @@
   }
 
   // ---------- 启动 ----------
-  setYear(-2070);
+  // 支持 URL 参数 ?year=1820 直接定位（便于分享链接与自动化测试）
+  var qs = location.search.match(/[?&]year=(-?\d+)/);
+  setYear(qs ? +qs[1] : -2070);
   // 调试用入口（控制台可直接 window.__setYear(618)）
   window.__setYear = setYear;
   window.__app = { get year() { return year; }, timeline: timeline, globe: globe };
