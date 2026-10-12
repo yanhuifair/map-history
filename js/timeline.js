@@ -57,8 +57,8 @@
       minorRows = rowEnds;
     })();
 
-    var ROW_MAIN = { y: 10, h: 26 };
-    var ROW_MINOR = { y: 42, h: 11, gap: 3 };
+    var ROW_MAIN = { y: 8, h: 24 };
+    var ROW_MINOR = { y: 40, h: 7, gap: 3 };
     var AXIS_H = 30;
 
     function layout() {
@@ -86,23 +86,33 @@
         var bw = Math.max(1.5, x1 - x0);
         var isNow = year >= d.start && year <= d.end;
         var isHover = hover === d;
+        var rr = Math.min(2, h / 2);
 
-        ctx.globalAlpha = isNow ? 1 : (isHover ? 0.95 : 0.62);
+        // 填充：当前政权高亮，hover 次之，其余压暗成「背景上下文」
+        ctx.globalAlpha = isNow ? 0.92 : (isHover ? 0.7 : 0.24);
         ctx.fillStyle = d.color;
-        roundRect(x0, y, bw, h, Math.min(4, h / 2));
+        roundRect(x0, y, bw, h, rr);
         ctx.fill();
 
         if (isNow) {
+          // 顶部发丝高光
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(x0 + 1, y + 0.5); ctx.lineTo(x1 - 1, y + 0.5); ctx.stroke();
+        }
+        if (isHover) {
           ctx.globalAlpha = 1;
-          ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-          ctx.lineWidth = 1.2;
-          roundRect(x0 + 0.5, y + 0.5, bw - 1, h - 1, Math.min(4, h / 2));
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+          ctx.lineWidth = 1;
+          roundRect(x0 + 0.5, y + 0.5, bw - 1, h - 1, rr);
           ctx.stroke();
         }
-        if (withText && bw > minTextW) {
+        // 文字：仅当前 / hover 政权，等宽字体
+        if (withText && bw > minTextW && (isNow || isHover)) {
           ctx.globalAlpha = 1;
-          ctx.fillStyle = 'rgba(10,14,20,0.88)';
-          ctx.font = '600 ' + fontSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+          ctx.fillStyle = 'rgba(5,9,14,0.92)';
+          ctx.font = '600 ' + fontSize + 'px "SF Mono",Menlo,"PingFang SC",sans-serif';
           ctx.textAlign = 'left';
           ctx.textBaseline = 'middle';
           var label = d.name.length > Math.floor(bw / (fontSize + 1)) ? d.name.slice(0, Math.max(1, Math.floor(bw / (fontSize + 1)) - 1)) + '…' : d.name;
@@ -139,49 +149,78 @@
       var L = layout(), w = L.w, h = L.h;
       ctx.clearRect(0, 0, w, h);
 
-      // 背景轨道
-      ctx.fillStyle = 'rgba(255,255,255,0.035)';
-      roundRect(PAD_L, ROW_MAIN.y, plotW(w), ROW_MAIN.h, 5); ctx.fill();
+      // 背景轨道（发丝线内衬）
+      ctx.fillStyle = 'rgba(125,185,235,0.028)';
+      roundRect(PAD_L, ROW_MAIN.y, plotW(w), ROW_MAIN.h, 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(125,185,235,0.08)';
+      ctx.lineWidth = 1;
+      roundRect(PAD_L + 0.5, ROW_MAIN.y + 0.5, plotW(w) - 1, ROW_MAIN.h - 1, 2); ctx.stroke();
 
-      drawBand(main, ROW_MAIN.y, ROW_MAIN.h, w, true, 11);
+      drawBand(main, ROW_MAIN.y, ROW_MAIN.h, w, true, 10.5);
       for (var r = 0; r < minorRows.length; r++) {
         var yy = ROW_MINOR.y + r * (ROW_MINOR.h + ROW_MINOR.gap);
         var row = minor.filter(function (d) { return d._row === r; });
         // 细带空间有限：色块足够宽时才画文字
-        drawBand(row, yy, ROW_MINOR.h, w, true, 8.5, 70);
+        drawBand(row, yy, ROW_MINOR.h, w, true, 8, 76);
       }
 
-      // 刻度轴
+      // 刻度轴 + 纵向参考网格（数据可视化风格）
       var ay = axisTop(h);
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(PAD_L, ay + 0.5); ctx.lineTo(w - PAD_R, ay + 0.5); ctx.stroke();
-
       var step = niceStep(view.max - view.min);
       var first = Math.ceil(view.min / step) * step;
-      ctx.font = '10px "SF Mono",Menlo,monospace';
+
+      // 纵向网格线：从轴顶一直延伸到主带上方
+      ctx.strokeStyle = 'rgba(125,185,235,0.05)';
+      ctx.lineWidth = 1;
+      for (var gy = first; gy <= view.max; gy += step) {
+        var gx = Math.round(y2x(gy, w)) + 0.5;
+        ctx.beginPath(); ctx.moveTo(gx, 2); ctx.lineTo(gx, ay); ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(125,185,235,0.16)';
+      ctx.beginPath(); ctx.moveTo(PAD_L, ay + 0.5); ctx.lineTo(w - PAD_R, ay + 0.5); ctx.stroke();
+
+      ctx.font = '9px "SF Mono",Menlo,monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       for (var y = first; y <= view.max; y += step) {
         var x = y2x(y, w);
-        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+        ctx.strokeStyle = 'rgba(125,185,235,0.22)';
         ctx.beginPath(); ctx.moveTo(x, ay); ctx.lineTo(x, ay + 5); ctx.stroke();
-        ctx.fillStyle = 'rgba(190,200,215,0.65)';
+        ctx.fillStyle = 'rgba(150,175,200,0.55)';
         ctx.fillText(fmtYear(y), x, ay + 8);
       }
 
-      // 当前年份指针
+      // 当前年份：顶部年份 chip + 全高十字线 + 轴端三角
       var px = y2x(year, w);
+      var chipLabel = fmtYear(year);
+      ctx.font = '700 9.5px "SF Mono",Menlo,monospace';
+      var chipW = ctx.measureText(chipLabel).width + 12;
+      var chipX = Math.max(PAD_L + chipW / 2, Math.min(w - PAD_R - chipW / 2, px));
       ctx.save();
-      ctx.strokeStyle = 'rgba(255,214,140,0.95)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(px, ROW_MAIN.y - 4); ctx.lineTo(px, ay + 4); ctx.stroke();
-      // 手柄
-      ctx.fillStyle = '#ffd68c';
+      roundRect(chipX - chipW / 2, 1, chipW, 15, 2);
+      ctx.fillStyle = 'rgba(94,234,212,0.1)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(94,234,212,0.45)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#5eead4';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chipLabel, chipX, 8.5);
+      ctx.restore();
+
+      // 十字线（从 chip 底部到轴）
+      ctx.save();
+      ctx.strokeStyle = 'rgba(94,234,212,0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px + 0.5, 18); ctx.lineTo(px + 0.5, ay); ctx.stroke();
+      // 轴端上三角
+      ctx.fillStyle = '#5eead4';
       ctx.beginPath();
-      ctx.moveTo(px, ROW_MAIN.y - 5);
-      ctx.lineTo(px + 6, ROW_MAIN.y - 12);
-      ctx.lineTo(px - 6, ROW_MAIN.y - 12);
+      ctx.moveTo(px, ay - 4);
+      ctx.lineTo(px + 4.5, ay + 2);
+      ctx.lineTo(px - 4.5, ay + 2);
       ctx.closePath(); ctx.fill();
       ctx.restore();
     }

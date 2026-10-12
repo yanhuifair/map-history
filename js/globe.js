@@ -187,38 +187,47 @@
       return p;
     }
 
-    // ---------- 底图绘制 ----------
+    // ---------- 底图绘制（数据可视化风格：近黑海洋 + 发丝经纬网 + 低对比陆地） ----------
     function drawBase() {
       var c = bctx;
       c.clearRect(0, 0, TEX_W, TEX_H);
 
-      // 海洋
+      // 海洋：近黑，带极轻的纵向明暗
       var g = c.createLinearGradient(0, 0, 0, TEX_H);
-      g.addColorStop(0, '#07162b');
-      g.addColorStop(0.5, '#0a1f3a');
-      g.addColorStop(1, '#07162b');
+      g.addColorStop(0, '#02040a');
+      g.addColorStop(0.5, '#050a12');
+      g.addColorStop(1, '#02040a');
       c.fillStyle = g;
       c.fillRect(0, 0, TEX_W, TEX_H);
 
-      // 经纬网
+      // 经纬网：5° 细线（发丝）+ 15° 主线 + 赤道加亮
       if (showGrid) {
-        c.lineWidth = Math.max(1, TEX_W / 2000);
-        c.strokeStyle = 'rgba(140,170,210,0.10)';
-        for (var lng = -180; lng <= 180; lng += 15) {
+        c.lineWidth = Math.max(1, TEX_W / 2600);
+        c.strokeStyle = 'rgba(125,185,235,0.045)';
+        for (var lng = -180; lng <= 180; lng += 5) {
           c.beginPath(); c.moveTo(px(lng), 0); c.lineTo(px(lng), TEX_H); c.stroke();
         }
-        for (var lat = -75; lat <= 75; lat += 15) {
+        for (var lat = -75; lat <= 75; lat += 5) {
           c.beginPath(); c.moveTo(0, py(lat)); c.lineTo(TEX_W, py(lat)); c.stroke();
         }
-        c.strokeStyle = 'rgba(160,190,230,0.20)';
+        c.lineWidth = Math.max(1, TEX_W / 2000);
+        c.strokeStyle = 'rgba(125,185,235,0.09)';
+        for (var lng2 = -180; lng2 <= 180; lng2 += 15) {
+          c.beginPath(); c.moveTo(px(lng2), 0); c.lineTo(px(lng2), TEX_H); c.stroke();
+        }
+        for (var lat2 = -75; lat2 <= 75; lat2 += 15) {
+          c.beginPath(); c.moveTo(0, py(lat2)); c.lineTo(TEX_W, py(lat2)); c.stroke();
+        }
+        c.strokeStyle = 'rgba(94,234,212,0.14)';
+        c.lineWidth = Math.max(1, TEX_W / 2000);
         c.beginPath(); c.moveTo(0, py(0)); c.lineTo(TEX_W, py(0)); c.stroke();
       }
 
       // 世界陆地（仅作背景，不含任何国界）
       var land = GEO.world;
       c.lineWidth = Math.max(1, TEX_W / 2200);
-      c.strokeStyle = 'rgba(110,140,180,0.45)';
-      c.fillStyle = '#16202f';
+      c.strokeStyle = 'rgba(125,165,205,0.13)';
+      c.fillStyle = '#0a1018';
       for (var i = 0; i < land.length; i++) {
         var r = land[i];
         if (r.length < 3) continue;
@@ -236,8 +245,8 @@
       // 中国省级参考底图（以省界数据填充，保证海岸线与世界底图的差异以省界为准）
       if (showProvince) {
         c.lineWidth = Math.max(1, TEX_W / 3000);
-        c.strokeStyle = 'rgba(150,175,210,0.30)';
-        c.fillStyle = '#1b2739';
+        c.strokeStyle = 'rgba(125,165,205,0.075)';
+        c.fillStyle = '#0c141c';
         for (var k = 0; k < GEO.provinces.length; k++) {
           var rings = GEO.provinces[k].p;
           for (var m = 0; m < rings.length; m++) {
@@ -255,6 +264,23 @@
       baseKey = (showGrid ? 'g' : '') + (showProvince ? 'p' : '');
     }
 
+    // 斜线填充图案（割据 / 边疆政权的纹理编码，与主体王朝的实色填充区分）
+    var hatchPattern = null;
+    function getHatch() {
+      if (hatchPattern) return hatchPattern;
+      var pc = document.createElement('canvas');
+      var s = Math.max(6, Math.round(TEX_W / 300));
+      pc.width = s; pc.height = s;
+      var pctx = pc.getContext('2d');
+      pctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      pctx.lineWidth = 1;
+      pctx.beginPath();
+      pctx.moveTo(0, s + 0.5); pctx.lineTo(s + 0.5, 0);
+      pctx.stroke();
+      hatchPattern = tctx.createPattern(pc, 'repeat');
+      return hatchPattern;
+    }
+
     // ---------- 疆域层绘制 ----------
     function drawTerritories(polities) {
       var c = tctx;
@@ -268,7 +294,7 @@
       for (var i = 0; i < list.length; i++) {
         var d = list[i];
         var path = getPolityPath(d);
-        var alpha = d.level === 1 ? 0.42 : (d.level === 2 ? 0.34 : 0.28);
+        var alpha = d.level === 1 ? 0.5 : (d.level === 2 ? 0.4 : 0.3);
 
         // 外发光 + 边界描边：仅在「无预计算轮廓」时跳过（此时逐市描边会产生内部网格）
         if (!HAS_SHAPE) {
@@ -289,6 +315,15 @@
         c.fill(path);
         c.restore();
 
+        // 割据 / 边疆政权：叠加斜线纹理（数据可视化式的等级编码）
+        if (d.level >= 3) {
+          c.save();
+          c.globalAlpha = 0.16;
+          c.fillStyle = getHatch();
+          c.fill(path);
+          c.restore();
+        }
+
         if (!CITY_UNITS) {
           c.save();
           c.globalAlpha = 0.95;
@@ -307,8 +342,8 @@
       }
       if (hasChina && GEO.nanhai && GEO.nanhai.length) {
         c.save();
-        c.strokeStyle = 'rgba(230,200,140,0.95)';
-        c.lineWidth = lw * 1.6;
+        c.strokeStyle = 'rgba(94,234,212,0.5)';
+        c.lineWidth = lw * 1.3;
         c.lineCap = 'round';
         for (var q = 0; q < GEO.nanhai.length; q++) {
           var line = GEO.nanhai[q];
@@ -321,17 +356,26 @@
         c.restore();
       }
 
-      // 都城标记
+      // 都城标记：准星风格（政权色外环 + 信号白中心点 + 四向短线）
       for (var k = 0; k < list.length; k++) {
         var dd = list[k];
         if (!dd.cap) continue;
         var x = px(dd.cap.lng), y = py(dd.cap.lat);
-        var R = TEX_W / 500;
+        var R = TEX_W / 620;
         c.save();
-        c.fillStyle = '#ffe9b0';
-        c.strokeStyle = '#7a4a10';
-        c.lineWidth = lw * 0.9;
-        c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2); c.fill(); c.stroke();
+        c.strokeStyle = dd.color;
+        c.lineWidth = Math.max(1.2, lw * 1.1);
+        c.beginPath(); c.arc(x, y, R, 0, Math.PI * 2); c.stroke();
+        c.fillStyle = '#e9fff8';
+        c.beginPath(); c.arc(x, y, Math.max(1, R * 0.36), 0, Math.PI * 2); c.fill();
+        c.strokeStyle = 'rgba(233,255,248,0.8)';
+        c.lineWidth = Math.max(1, lw * 0.7);
+        c.beginPath();
+        c.moveTo(x - R * 2.1, y); c.lineTo(x - R * 1.35, y);
+        c.moveTo(x + R * 1.35, y); c.lineTo(x + R * 2.1, y);
+        c.moveTo(x, y - R * 2.1); c.lineTo(x, y - R * 1.35);
+        c.moveTo(x, y + R * 1.35); c.lineTo(x, y + R * 2.1);
+        c.stroke();
         c.restore();
       }
       needsRedraw = true;
@@ -385,6 +429,11 @@
       return { x: sx, y: sy, visible: visible };
     };
 
+    // 当前视图状态（供 HUD 读数）
+    self.getView = function () {
+      return { lng: view.lng, lat: view.lat, scale: view.scale };
+    };
+
     // ---------- 尺寸 ----------
     function resize() {
       var w = container.clientWidth, h = container.clientHeight;
@@ -429,8 +478,47 @@
       ctx.imageSmoothingEnabled = true;
       ctx.drawImage(texCanvas, 0, 0);
 
-      // 轻量边框（地图边缘提示）
+      // 暗角（示波器质感，中心亮、四角沉下去）
       ctx.setTransform(1, 0, 0, 1, 0, 0);
+      var vg = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.38,
+        canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.78
+      );
+      vg.addColorStop(0, 'rgba(2,4,8,0)');
+      vg.addColorStop(1, 'rgba(2,4,8,0.5)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 比例尺（数据可视化风格，右下角；按当前纬度折算公里）
+      var lat0 = clamp(view.lat, -60, 60);
+      var kmPerDeg = 111.32 * Math.cos(lat0 * DEG);
+      var pxPerDeg = view.scale * (TEX_W / 360) * dpr;
+      var cands = [200, 500, 1000, 2000, 5000];
+      var pick = null;
+      for (var ci = 0; ci < cands.length; ci++) {
+        var cw = cands[ci] / kmPerDeg * pxPerDeg;
+        if (cw >= 56 && cw <= 220) { pick = { km: cands[ci], w: cw }; break; }
+        if (cw > 220) { pick = { km: cands[ci], w: cw }; break; }
+      }
+      if (!pick) pick = { km: cands[cands.length - 1], w: cands[cands.length - 1] / kmPerDeg * pxPerDeg };
+      var sbX1 = canvas.width - 22 * dpr, sbY = canvas.height - 30 * dpr;
+      var sbX0 = sbX1 - pick.w;
+      if (sbX0 > 10 * dpr) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(190,215,230,0.6)';
+        ctx.lineWidth = Math.max(1, dpr);
+        ctx.beginPath();
+        ctx.moveTo(sbX0, sbY); ctx.lineTo(sbX1, sbY);
+        ctx.moveTo(sbX0, sbY - 4 * dpr); ctx.lineTo(sbX0, sbY + 4 * dpr);
+        ctx.moveTo(sbX1, sbY - 4 * dpr); ctx.lineTo(sbX1, sbY + 4 * dpr);
+        ctx.stroke();
+        ctx.font = '600 ' + (9 * dpr) + 'px "SF Mono",Menlo,monospace';
+        ctx.fillStyle = 'rgba(190,215,230,0.75)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(pick.km + ' KM', (sbX0 + sbX1) / 2, sbY - 6 * dpr);
+        ctx.restore();
+      }
     }
 
     // ---------- 交互 ----------

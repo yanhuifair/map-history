@@ -209,10 +209,29 @@
     }
   }
 
+  // ---------- HUD 读数（数据可视化风格的状态行） ----------
+  var hud = {
+    era: $('hud-era'), lng: $('hud-lng'), lat: $('hud-lat'),
+    zoom: $('hud-zoom'), active: $('hud-active')
+  };
+  function fmtCoord(v, pos, neg) {
+    return Math.abs(v).toFixed(1) + '°' + (v >= 0 ? pos : neg);
+  }
+  function updateHUD(list) {
+    var v = globe.getView();
+    hud.lng.textContent = fmtCoord(v.lng, 'E', 'W');
+    hud.lat.textContent = fmtCoord(v.lat, 'N', 'S');
+    hud.zoom.textContent = v.scale.toFixed(2) + '×';
+    hud.active.textContent = '' + list.length;
+    var main = mainOf(list);
+    hud.era.textContent = main ? main.name + ' · ' + spanText(main) : '无政权记录';
+  }
+
   // ---------- 信息面板 ----------
   function renderPanel(list) {
-    $('year-big').textContent = year < 0 ? '前 ' + (-year) : '' + year;
+    $('year-big').textContent = year < 0 ? '前' + (-year) : '' + year;
     $('year-sub').textContent = yearText(year);
+    updateHUD(list);
 
     var main = mainOf(list);
     var box = $('panel-main');
@@ -379,6 +398,7 @@
   });
 
   // ---------- 帧循环 ----------
+  var hudTs = 0;
   function onFrame() {
     if (playing) {
       var now = performance.now();
@@ -390,6 +410,9 @@
     }
     updateLabelPositions();
     updateRegionPositions();
+    // HUD 读数随视图平滑刷新（节流约 10fps，避免频繁写 DOM）
+    var t = performance.now();
+    if (t - hudTs > 100) { hudTs = t; updateHUD(activeAt(year)); }
   }
 
   // ---------- 启动 ----------

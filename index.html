@@ -10,8 +10,11 @@
 <div id="app">
   <header id="top">
     <div class="brand">
-      <h1>中国历史疆域 · 时空地图</h1>
-      <span class="sub">夏（前 2070）至今 · 拖动时间轴，看疆域在平面地图上演变</span>
+      <span class="mark"><i></i></span>
+      <div>
+        <h1>中国历史疆域 · 时空地图</h1>
+        <span class="sub">China Historical Territory · 2070BC → NOW</span>
+      </div>
     </div>
     <div id="chips-row" class="chips-row"></div>
     <div class="tools">
@@ -28,13 +31,24 @@
   <main id="stage">
     <div id="globe"></div>
     <div id="labels"></div>
-    <div id="year-box">
-      <div id="year-big">前 2070</div>
+    <div id="year-box" class="brackets">
+      <span class="mlabel">Year · 纪年</span>
+      <div id="year-big">前2070</div>
       <div id="year-sub">公元前 2070 年</div>
     </div>
-    <aside id="panel">
+    <div id="hud">
+      <div class="row"><span class="live">LIVE</span><span class="v" id="hud-era">—</span></div>
+      <div class="row">
+        <span class="k">LNG</span><span class="v" id="hud-lng">—</span>
+        <span class="k">LAT</span><span class="v" id="hud-lat">—</span>
+        <span class="k">ZOOM</span><span class="v" id="hud-zoom">—</span>
+      </div>
+      <div class="row"><span class="k">ACTIVE</span><span class="v" id="hud-active">—</span></div>
+    </div>
+    <aside id="panel" class="brackets">
+      <span class="mlabel" style="display:block;margin-bottom:8px">Polity · 政权档案</span>
       <div id="panel-main"></div>
-      <div class="hint">拖动平移地图 · 滚轮缩放 · ←/→ 微调年份 · 空格播放</div>
+      <div class="hint">DRAG 平移 · WHEEL 缩放 · ←/→ 微调年份 · SPACE 播放</div>
     </aside>
   </main>
 
@@ -45,7 +59,7 @@
       <button id="btn-next" title="下一个政权">⏭</button>
       <button id="btn-speed" title="播放速度">×2</button>
       <button id="btn-reset" title="重置时间轴">⟲</button>
-      <span class="tl-tip">点击色块可跳转 · 滚轮缩放时间轴 · 拖动刻度轴平移</span>
+      <span class="tl-tip">点击色块跳转 · 滚轮缩放时间轴 · 拖动刻度轴平移</span>
     </div>
     <div class="tl-wrap"><canvas id="timeline"></canvas></div>
   </footer>

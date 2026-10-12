@@ -12,10 +12,12 @@ A single-page interactive visualization of **all major states and dynasties in C
 - **Timeline scrubber** at the bottom: drag / click any year; the territory on the map changes with the timeline.
   - Upper thick band: major unified dynasties; thin bands below: regional / fragmented / frontier regimes.
   - Mouse wheel zooms the time axis; drag the axis to pan; click a dynasty block to jump.
+  - Inactive blocks dim into background context; the current year gets a crosshair line + year chip.
 - **Playback**: play / pause, 1× / 2× / 4× speed, prev/next regime, keyboard (`←/→` step years, `Shift` ×20, `Space` play, `Home/End`).
 - **82 polities** from Xia to the PRC: unified dynasties, Warring States, Three Kingdoms, Sixteen Kingdoms, Northern & Southern Dynasties, Five Dynasties & Ten Kingdoms, Liao/Song/Xia/Jin, steppe empires (Xiongnu, Rouran, Türk, Uyghurs), Yuan / Ming / Qing / ROC / PRC.
 - **Info panel** for the current year: polity, reign dates, capital, peak territory, short description, coexisting regimes.
 - **Capital labels** overlaid on the map (hidden while off-screen); click a label or badge to fly the map there.
+- **Geek data-viz UI**: near-black instrument-panel aesthetic, single signal-teal accent, hairline borders, monospaced tabular numerals, HUD readout (center coordinates / zoom / active polities), scale bar in km, faint 5°/15° graticule, and a fill-texture encoding (solid = unified dynasty, hatched = frontier / fragmented regime).
 - **Standards-compliant map**: province-level reference basemap includes Taiwan, Hong Kong / Macao and the South China Sea islands (nine-dash line is drawn when China is on the map).
 
 ## Territory data model
@@ -43,7 +45,7 @@ No build step and no external network requests at runtime — the generated data
 
 ```
 index.html               page shell
-css/style.css            dark minimal theme
+css/style.css            dark geek-minimal / data-viz theme
 js/data/geo-base.js      generated: world land + China provinces + nine-dash line
 js/data/geo-shape.js     generated: per-polity outer outlines (union of cities + extras)
 js/data/dynasties.js     polity & territory data (hand-curated)
