@@ -14,7 +14,7 @@ A single-page interactive visualization of **all major states and dynasties in C
   - Mouse wheel zooms the time axis; drag the axis to pan; click a dynasty block to jump.
   - Inactive blocks dim into background context; the current year gets a crosshair line + year chip.
 - **Playback**: play / pause, 1× / 2× / 4× speed, prev/next regime, keyboard (`←/→` step years, `Shift` ×20, `Space` play, `Home/End`).
-- **82 polities** from Xia to the PRC: unified dynasties, Warring States, Three Kingdoms, Sixteen Kingdoms, Northern & Southern Dynasties, Five Dynasties & Ten Kingdoms, Liao/Song/Xia/Jin, steppe empires (Xiongnu, Rouran, Türk, Uyghurs), Yuan / Ming / Qing / ROC / PRC.
+- **84 polities** from Xia to the PRC: unified dynasties, Warring States, Three Kingdoms, Sixteen Kingdoms, Northern & Southern Dynasties, Five Dynasties & Ten Kingdoms, Liao/Song/Xia/Jin, steppe empires (Xiongnu, Rouran, Türk, Uyghurs), Yuan / Ming / Qing / ROC / PRC. Late-Qing and ROC spans are split at the treaties that reshaped the map (1858 Outer Northeast/Northwest, 1895 Taiwan, 1924 Outer Mongolia, 1945 Taiwan retrocession).
 - **Info panel** for the current year: polity, reign dates, capital, peak territory, short description, coexisting regimes.
 - **Capital labels** overlaid on the map (hidden while off-screen); click a label or badge to fly the map there.
 - **Geek data-viz UI**: near-black instrument-panel aesthetic, single signal-teal accent, hairline borders, monospaced tabular numerals, HUD readout (center coordinates / zoom / active polities), scale bar in km, faint 5°/15° graticule, and a fill-texture encoding (solid = unified dynasty, hatched = frontier / fragmented regime).

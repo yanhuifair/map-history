@@ -133,8 +133,11 @@ for (const d of D) {
 // ---------- 3. 同一年份的「覆盖空洞」抽查 ----------
 // 对每年活跃政权取并集，看主流中国区域是否出现异常大空白
 // （简化：只报告某年活跃政权数，以及完全没有政权标注点的年份区间）
+// 采样上限取当前年份（prc.end 由 app.js 在运行时刷新，此处以 2026 为界）
 const years = [];
-for (let y = -2100; y <= 2030; y += 10) {
+for (let y = -2100; y <= 2026; y += 10) {
+  // 夏（前 2070）之前本无政权，时间轴 minYear(-2150) 仅作留边，不计为空档
+  if (y < -2070) continue;
   const act = D.filter(d => y >= d.start && y <= d.end);
   if (!act.length) years.push(y);
 }

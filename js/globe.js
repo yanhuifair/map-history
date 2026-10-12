@@ -335,10 +335,11 @@
         }
       }
 
-      // 南海诸岛（九段线）—— 中国领有南海诸岛时才绘制
+      // 南海诸岛（九段线）—— 中国政权（ROC/PRC 系列）在场时绘制
       var hasChina = false;
       for (var z = 0; z < polities.length; z++) {
-        if (polities[z].id === 'prc' || polities[z].id === 'roc1' || polities[z].id === 'roc2') hasChina = true;
+        var pid = polities[z].id;
+        if (pid === 'prc' || pid === 'roc1' || pid === 'roc2' || pid === 'roc3') hasChina = true;
       }
       if (hasChina && GEO.nanhai && GEO.nanhai.length) {
         c.save();
