@@ -28,7 +28,7 @@
 - `cityAdd` —— 需要**追加**到省级列表之外的市；
 - `extra` —— 现代国界以外的手工多边形（`mongolia`、`outerNE`、`centralAsia`、`annam`、`koreaN`、`hexi`、`longyou` 等）。
 
-构建时把每个政权的「市 + extra」做**多边形并集**，生成干净的外轮廓（`js/data/geo-shape.js`）——于是地图**按地级市填色**以保证精度，同时只描外边界、不出现内部市网格。历史疆域为**示意性近似**，不用于任何边界主张。海岸线底图来自 Natural Earth 50m 陆地轮廓（公有领域，不含国界），中国区域用省级边界回填、海岸线精确吻合；中国省级边界来自 DataV.GeoAtlas。
+构建时把每个政权的「市 + extra」做**多边形并集**，生成干净的外轮廓（`js/data/geo-shape.js`）——于是地图**按地级市填色**以保证精度，同时只描外边界、不出现内部市网格。另有**县级模式**（`tools/build-shape.js --county`，2840 个县级单元，DP 容差 0.01°）：所有对峙线细化到县界级——淮河、大散关、白沟河等条约边界与塔里木绿洲带都沿真实县界勾勒，匈奴与十六国河西政权由手绘环改为真实行政区。历史疆域为**示意性近似**，不用于任何边界主张。海岸线底图来自 Natural Earth 50m 陆地轮廓（公有领域，不含国界），中国区域用省级边界回填、海岸线精确吻合；中国省级边界来自 DataV.GeoAtlas。
 
 ## 运行
 
@@ -47,21 +47,30 @@ python3 -m http.server 8791
 index.html              页面骨架
 css/style.css           暗色极客极简 / 数据可视化主题
 js/data/geo-base.js     自动生成：世界陆地 + 中国省级边界 + 九段线
-js/data/geo-shape.js    自动生成：各政权外轮廓（市 + extra 的并集）
+js/data/geo-shape.js    自动生成：各政权外轮廓（单元 + extra 的并集）
 js/data/dynasties.js    政权与疆域数据（手工整理）
 js/globe.js             2D 地图渲染（缓存等距圆柱底图 + 疆域图层）
 js/timeline.js          时间轴：色带分行、缩放平移、拖动
 js/app.js               主控：年份 → 政权集合 → 地图/面板/标签
 tools/fetch-geo.js      抓取 DataV 省 / 市级边界
-tools/build-shape.js    市 + extra 求并集 → js/data/geo-shape.js
+tools/fetch-geo-county.js 抓取 DataV 县级边界（2840 单元）
+tools/build-shape.js    单元 + extra 求并集 → js/data/geo-shape.js（市级 / --county 县级）
+tools/audit-territory.js 全量审计：字段、自交、都城、孤立块
 ```
 
 重新生成疆域轮廓：
 
 ```bash
-node tools/fetch-geo.js    # 下载 DataV 边界到 tools/raw（带缓存）
-node tools/build-shape.js  # 依赖 polygon-clipping
+node tools/fetch-geo.js        # 市级原始数据（tools/raw）
+node tools/fetch-geo-county.js # 县级原始数据（tools/raw-county，约 45 秒）
+# 市级模式（DP 容差 0.03°）：
+node tools/build-shape.js
+# 县级模式（DP 容差 0.01°，cityDel 支持三级语义：省名 / 市名 / 县名）：
+NODE_PATH=/path/to/node_modules node tools/build-shape.js --county   # 依赖 polygon-clipping
+node tools/audit-territory.js  # 审计结果
 ```
+
+`cityDel` 名称按三级解析：市名 = 删该市全部县（向后兼容市级名单）、县名 = 删单县、省名 = 删全省。
 
 `geo-base.js`（世界陆地 + 省级底图）另行由 Natural Earth 50m TopoJSON + DataV 省级边界生成。
 

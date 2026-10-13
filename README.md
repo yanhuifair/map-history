@@ -28,7 +28,7 @@ Each polity is defined in `js/data/dynasties.js` as a set of modern provinces (`
 - `cityAdd` — cities to add beyond the listed provinces;
 - `extra` — hand-drawn polygons for areas beyond the modern border (`mongolia`, `outerNE`, `centralAsia`, `annam`, `koreaN`, `hexi`, `longyou`, …).
 
-A build step unions each polity's cities + extras into one clean outline (`js/data/geo-shape.js`), so the map fills by **prefecture-level city** for precision while stroking only the outer boundary — no internal city grid. Historical extents are **approximate visualizations**, not boundary claims. The basemap coastline uses Natural Earth 50m land (public domain, no borders), with the China area refilled from province boundaries so coastlines match exactly; China province boundaries come from DataV.GeoAtlas.
+A build step unions each polity's cities + extras into one clean outline (`js/data/geo-shape.js`), so the map fills by **prefecture-level city** for precision while stroking only the outer boundary — no internal city grid. A **county-level mode** (`tools/build-shape.js --county`, 2840 county units, DP tolerance 0.01°) sharpens every frontier to county scale — the Huai River / Daba Pass / Baigou River treaty lines and the Tarim oasis ring follow real county boundaries instead of coarse rings; the Xiongnu and Sixteen-Kingdoms Hexi polities were switched from hand-drawn rings to real administrative units. Historical extents are **approximate visualizations**, not boundary claims. The basemap coastline uses Natural Earth 50m land (public domain, no borders), with the China area refilled from province boundaries so coastlines match exactly; China province boundaries come from DataV.GeoAtlas.
 
 ## Run
 
@@ -47,21 +47,30 @@ No build step and no external network requests at runtime — the generated data
 index.html               page shell
 css/style.css            dark geek-minimal / data-viz theme
 js/data/geo-base.js      generated: world land + China provinces + nine-dash line
-js/data/geo-shape.js     generated: per-polity outer outlines (union of cities + extras)
+js/data/geo-shape.js     generated: per-polity outer outlines (union of units + extras)
 js/data/dynasties.js     polity & territory data (hand-curated)
 js/globe.js              2D map rendering (cached equirect base + territory layers)
 js/timeline.js           timeline: bands, rows, zoom/pan, scrub
 js/app.js                wiring: year → polities → map/panel/labels
 tools/fetch-geo.js       fetch DataV province / prefecture boundaries
-tools/build-shape.js     union cities + extras → js/data/geo-shape.js
+tools/fetch-geo-county.js fetch DataV county boundaries (2840 units)
+tools/build-shape.js     union units + extras → js/data/geo-shape.js (city or --county mode)
+tools/audit-territory.js full audit: fields, self-intersection, capitals, isolated blocks
 ```
 
 Regenerate the territory outlines:
 
 ```bash
-node tools/fetch-geo.js    # download DataV boundaries into tools/raw (cached)
-node tools/build-shape.js  # requires polygon-clipping
+node tools/fetch-geo.js        # prefecture-level source (tools/raw)
+node tools/fetch-geo-county.js # county-level source (tools/raw-county, ~45s)
+# city mode (DP 0.03°):
+node tools/build-shape.js
+# county mode (DP 0.01°, 3-level cityDel semantics: province / prefecture / county name):
+NODE_PATH=/path/to/node_modules node tools/build-shape.js --county   # needs polygon-clipping
+node tools/audit-territory.js  # audit the result
 ```
+
+`cityDel` names resolve at three levels — a prefecture name removes all its counties (backward compatible), a county name removes just that county, a province name removes the whole province.
 
 `geo-base.js` (world land + province basemap) was generated separately from Natural Earth 50m TopoJSON + DataV province boundaries.
 

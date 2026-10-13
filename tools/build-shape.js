@@ -16,16 +16,21 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const RAW = path.join(__dirname, 'raw');
-const PROV_IDX = path.join(__dirname, 'prov_index.json');
-const DYN = path.join(ROOT, 'js/data/dynasties.js');
-const OUT = path.join(ROOT, 'js/data/geo-shape.js');
+const PROV_IDX = path.join(ROOT, 'tools', 'prov_index.json');
+const DYN = path.join(ROOT, 'js/data', 'dynasties.js');
+const OUT = path.join(ROOT, 'js/data', 'geo-shape.js');
 
-const TOL = 0.03;         // 简化容差（度）
-const MIN_AREA = 6e-4;    // 丢弃过小环（度²）
-const VW_TOL = 0.02;      // Visvalingam 尖刺滤波阈值（度²）
-const VW_MIN_RING = 2;    // 只对面积 >2°² 的大环做尖刺滤波（保护小岛/飞地）
-const MUNI = [110000, 120000, 310000, 500000, 810000, 820000, 710000]; // 直辖市/港澳台用整块
+// 粒度模式：默认市级（tools/raw，省文件的直接下级=地级市）；
+// --county 切换到县级（tools/raw-county，每个地级文件的直接下级=县/区/旗）。
+// 县级模式容差更细（0.01°≈1.1km），VW 尖刺阈值同步下调，放大后可见县界级细节。
+const COUNTY = process.argv.includes('--county');
+const RAW = COUNTY ? path.join(ROOT, 'tools', 'raw-county') : path.join(ROOT, 'tools', 'raw');
+const RAW_CITY = path.join(ROOT, 'tools', 'raw');
+const TOL = COUNTY ? 0.01 : 0.03;       // DP 简化容差（度）
+const VW_TOL = COUNTY ? 0.005 : 0.02;   // Visvalingam 尖刺滤波阈值（度²）
+const VW_MIN_RING = 2;                  // 只对面积 >2°² 的大环做尖刺滤波（保护小岛/飞地）
+const MIN_AREA = 6e-4;                  // 丢弃过小环（度²）
+const MUNI = [110000, 120000, 310000, 500000, 810000, 820000]; // 直辖市/港澳的省级文件本身就是区级
 
 // Visvalingam-Whyatt 面积滤波：按三角形面积从小到大剔除顶点。
 // 为什么需要它：Douglas-Peucker 在密集摆动边界（现代市界沿河流山脊高频抖动）上
@@ -141,30 +146,138 @@ function featPolys(g) { if (!g) return []; return g.type === 'Polygon' ? [g.coor
 const idx = JSON.parse(fs.readFileSync(PROV_IDX, 'utf8'));
 const provByCode = {}; for (const f of idx.features) provByCode[f.properties.adcode] = f;
 
+// ---- 单位加载 ----
+// 市级模式：省文件的直接下级（地级市）即单位。
+// 县级模式：地级文件的直接下级（县/区/旗）即单位；每个单位记录所属省与所属地级，
+//           使 cityDel 支持三级语义：市名=删该市全部县、县名=删单县、省名=删全省。
 const units = [];
-for (const file of fs.readdirSync(RAW)) {
-  const code = +file.replace('.json', '');
-  if (MUNI.includes(code)) continue;
-  const j = JSON.parse(fs.readFileSync(path.join(RAW, file), 'utf8'));
-  const provName = provByCode[code] ? provByCode[code].properties.name : String(code);
-  for (const ft of j.features) units.push({ n: ft.properties.name, prov: provName, polys: featPolys(ft.geometry) });
+const prefName = {};   // 地级 adcode -> 地级名（县级模式按文件反查；直辖市为自己）
+if (!COUNTY) {
+  for (const file of fs.readdirSync(RAW)) {
+    const code = +file.replace('.json', '');
+    if (MUNI.includes(code)) continue;
+    const j = JSON.parse(fs.readFileSync(path.join(RAW, file), 'utf8'));
+    const provName = provByCode[code] ? provByCode[code].properties.name : String(code);
+    for (const ft of j.features) units.push({ n: ft.properties.name, prov: provName, polys: featPolys(ft.geometry) });
+  }
+  for (const code of MUNI) {
+    const f = provByCode[code]; if (!f) continue;
+    const name = f.properties.name;
+    units.push({ n: name, prov: name, polys: featPolys(f.geometry) });
+  }
+} else {
+  // 地级 adcode -> 省名 / 地级名（来自市级 raw）
+  const prefProv = {};
+  for (const file of fs.readdirSync(RAW_CITY)) {
+    const code = +file.replace('.json', ''); if (!code) continue;
+    const j = JSON.parse(fs.readFileSync(path.join(RAW_CITY, file), 'utf8'));
+    const pn = provByCode[code] ? provByCode[code].properties.name : String(code);
+    for (const ft of j.features) { prefProv[ft.properties.adcode] = pn; prefName[ft.properties.adcode] = ft.properties.name; }
+  }
+  for (const code of MUNI) { prefProv[code] = provByCode[code] ? provByCode[code].properties.name : String(code); prefName[code] = provByCode[code] ? provByCode[code].properties.name : String(code); }
+  for (const file of fs.readdirSync(RAW)) {
+    const ad = +file.replace('.json', '');
+    const provName = prefProv[ad];
+    if (!provName) { console.log('WARN 县级文件无对应省份:', file); continue; }
+    const j = JSON.parse(fs.readFileSync(path.join(RAW, file), 'utf8'));
+    for (const ft of j.features) units.push({ n: ft.properties.name, prov: provName, pref: prefName[ad], polys: featPolys(ft.geometry) });
+  }
+  // 省直辖县级单位（无下级的地级块）：新疆兵团师市、嘉峪关、济源、海南省直辖市等。
+  // 它们不挂在任何地级文件下，直接从市级省文件中按「叶子」纳入，保持 cityDel 可按名删除。
+  for (const file of fs.readdirSync(RAW_CITY)) {
+    const code = +file.replace('.json', ''); if (!code) continue;
+    const j = JSON.parse(fs.readFileSync(path.join(RAW_CITY, file), 'utf8'));
+    const pn = provByCode[code] ? provByCode[code].properties.name : String(code);
+    for (const ft of j.features) {
+      if (!ft.properties.childrenNum) units.push({ n: ft.properties.name, prov: pn, pref: null, polys: featPolys(ft.geometry) });
+    }
+  }
+  // 台湾：DataV 无县级数据，用省级整块
+  const tw = provByCode[710000];
+  if (tw) units.push({ n: tw.properties.name, prov: tw.properties.name, polys: featPolys(tw.geometry) });
 }
-for (const code of MUNI) {
-  const f = provByCode[code]; if (!f) continue;
-  const name = f.properties.name;
-  units.push({ n: name, prov: name, polys: featPolys(f.geometry) });
+
+// 三种索引：省 -> 单位[]；地级 -> 单位[]；县名 -> 单位[]（重名县收齐全量）
+const byProv = {}, byPref = {}, byName = {};
+for (const u of units) {
+  (byProv[u.prov] = byProv[u.prov] || []).push(u);
+  if (u.pref) (byPref[u.pref] = byPref[u.pref] || []).push(u);
+  (byName[u.n] = byName[u.n] || []).push(u);
 }
-const byProv = {}, byName = {};
-for (const u of units) { (byProv[u.prov] = byProv[u.prov] || []).push(u); if (!(u.n in byName)) byName[u.n] = u; }
+
+// cityDel 名称解析：市名（向后兼容市级名单）> 县名 > 省名
+function resolveDel(names) {
+  const del = {};
+  const warn = [];
+  for (const n of names) {
+    if (byPref[n]) { for (const u of byPref[n]) del[u.n] = 1; continue; }
+    if (byName[n]) { for (const u of byName[n]) del[u.n] = 1; if (byName[n].length > 1) warn.push(n + '(重名×' + byName[n].length + ')'); continue; }
+    if (byProv[n]) { for (const u of byProv[n]) del[u.n] = 1; warn.push(n + '(省名删全省)'); continue; }
+    warn.push(n + '(未知)');
+  }
+  return { del, warn };
+}
+function resolveAdd(n) {
+  if (byName[n]) return byName[n];
+  if (byPref[n]) return byPref[n];
+  if (byProv[n]) return byProv[n];
+  return null;
+}
+
+// ---- 分层并集 ----
+// 全国级政权一次并集 ~2800 个县会撑爆 polygon-clipping 的 Martinez 优先队列
+// （"queue size too big"）。改为两级：先在省内把各县并成大环（每省约百个县），
+// 再把 ~31 个省级结果 + extra 做最终并集。按 (省, 剔除集) 缓存，构建总量大降。
+const provCache = {};
+function unionPolys(polys) {
+  if (polys.length <= 1) return polys;
+  try { return pc.union(polys); } catch (e) { return null; }
+}
+function unionProvince(provName, del) {
+  const arr = byProv[provName];
+  if (!arr) return [];
+  // 缓存键：省 + 该省被剔除的县名单
+  const delNames = arr.filter(u => del[u.n]).map(u => u.n).sort().join(',');
+  const key = provName + '|' + delNames;
+  if (provCache[key] !== undefined) return provCache[key];
+  const polys = [];
+  for (const u of arr) { if (del[u.n]) continue; for (const p of u.polys) polys.push(p); }
+  let merged = unionPolys(polys);
+  if (merged === null) {
+    // 省级仍超限（如新疆单元极多）：逐个合并兜底
+    let acc = [];
+    for (const p of polys) {
+      const m = unionPolys(acc.concat([p]));
+      acc = m === null ? acc.concat([p]) : m;
+    }
+    merged = acc;
+  }
+  provCache[key] = merged;
+  return merged;
+}
 
 const out = {}, labels = {};
+const allWarn = [];
 for (const d of D) {
-  const del = {}; (d.cityDel || []).forEach(n => del[n] = 1);
-  const polys = [];
-  for (const pn of d.provNames) { const arr = byProv[pn]; if (!arr) continue; for (const u of arr) { if (del[u.n]) continue; for (const poly of u.polys) polys.push(poly); } }
-  for (const n of (d.cityAdd || [])) { const u = byName[n]; if (u) for (const poly of u.polys) polys.push(poly); }
-  for (const ring of d.extra) polys.push([ring]);
-  let merged; try { merged = pc.union(polys); } catch (e) { console.log('UNION FAIL', d.id, e.message); merged = polys; }
+  const rd = resolveDel(d.cityDel || []);
+  for (const w of rd.warn) allWarn.push(d.id + ' -> ' + w);
+  const del = rd.del;
+  // 第一级：所列省份逐省并集
+  const provPolys = [];
+  for (const pn of d.provNames) {
+    for (const poly of unionProvince(pn, del)) provPolys.push(poly);
+  }
+  // cityAdd：按县/市名直接补多边形（县级模式下市名=该市全部县）。
+  // 不并入省级并集——cityAdd 可能只补某省的一两个地级（如匈奴补塔里木诸州），
+  // 若按省并集会误把全省纳入。del 优先于 cityAdd。
+  for (const n of (d.cityAdd || [])) {
+    const arr = resolveAdd(n);
+    if (arr) for (const u of arr) { if (del[u.n]) continue; for (const poly of u.polys) provPolys.push(poly); }
+  }
+  for (const ring of d.extra) provPolys.push([ring]);
+  // 第二级：省级结果 + cityAdd + extra 总并集
+  let merged = unionPolys(provPolys);
+  if (merged === null) { console.log('UNION FAIL', d.id); merged = provPolys; }
   const shape = [];
   for (const poly of merged) {
     // 只保留外环：并集产生的「洞」几乎都是相邻单元边缘未完全重合的缝隙——
@@ -184,10 +297,13 @@ for (const d of D) {
 }
 
 const js = '/* 政权外轮廓（自动生成，勿手工编辑；见 tools/build-shape.js）\n'
-  + ' * 由 geo-city 市界 + dynasties.extra 做多边形并集，仅描外边界（无内部网格）。\n'
+  + ' * ' + (COUNTY ? '县级' : '市级') + '边界 + dynasties.extra 做多边形并集，仅描外边界（无内部网格）。\n'
   + ' * GEO_SHAPE[id] = MultiPolygon: [ [外环, ...内环], ... ]；GEO_LABEL[id] = 政权名标注点（最大内切圆圆心）。\n'
   + ' */\n'
   + 'window.GEO_SHAPE = ' + JSON.stringify(out) + ';\n'
   + 'window.GEO_LABEL = ' + JSON.stringify(labels) + ';\n';
 fs.writeFileSync(OUT, js);
+console.log('模式:', COUNTY ? '县级(--county)' : '市级', '| 单位数:', units.length);
 console.log('写出', OUT, (js.length / 1024).toFixed(0) + 'KB', '标签数', Object.keys(labels).length);
+if (allWarn.length) { console.log('cityDel 警告:'); for (const w of allWarn) console.log('  ', w); }
+else console.log('cityDel 全部解析成功');

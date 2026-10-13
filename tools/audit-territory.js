@@ -1,24 +1,28 @@
 /* 疆域数据全量审计：数据层 + 几何层
  * 用法：node tools/audit.js       （依赖 tools/raw 的市级边界；若缺失先跑 fetch-geo.js）
+ * 县级模式（tools/raw-county 存在时）自动同时校验县名——cityDel/cityAdd 名单
+ * 可以是省名、市名或县名（build-shape 三级语义）。
  */
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
-const RAW = path.join(__dirname, 'raw');
-const PROV_IDX = path.join(__dirname, 'prov_index.json');
+const RAW = path.join(ROOT, 'tools', 'raw');
+const RAW_COUNTY = path.join(ROOT, 'tools', 'raw-county');
+const PROV_IDX = path.join(ROOT, 'tools', 'prov_index.json');
 
 global.window = {};
 require(path.join(ROOT, 'js/data/dynasties.js'));
 require(path.join(ROOT, 'js/data/geo-shape.js'));
 const D = window.DYNASTIES, S = window.GEO_SHAPE, L = window.GEO_LABEL, PM = window.PROV_MAP;
 
-// ---------- 市单位名（与 build-shape 一致） ----------
+// ---------- 市 / 县单位名 ----------
+// 市级：省文件的直接下级；县级：地级文件的直接下级 + 省直辖叶子（兵团师市等）
 const unitsByName = {}, unitProv = {};
 let haveRaw = fs.existsSync(RAW) && fs.existsSync(PROV_IDX);
+const MUNI = [110000, 120000, 310000, 500000, 810000, 820000, 710000];
 if (haveRaw) {
   const idx = JSON.parse(fs.readFileSync(PROV_IDX, 'utf8'));
   const provByCode = {}; for (const f of idx.features) provByCode[f.properties.adcode] = f.properties.name;
-  const MUNI = [110000, 120000, 310000, 500000, 810000, 820000, 710000];
   for (const file of fs.readdirSync(RAW)) {
     const code = +file.replace('.json', ''); if (MUNI.includes(code)) continue;
     const j = JSON.parse(fs.readFileSync(path.join(RAW, file), 'utf8'));
@@ -26,6 +30,34 @@ if (haveRaw) {
     for (const ft of j.features) { unitsByName[ft.properties.name] = 1; unitProv[ft.properties.name] = pn; }
   }
   for (const code of MUNI) { const pn = provByCode[code]; if (pn) { unitsByName[pn] = 1; unitProv[pn] = pn; } }
+  // 县级（若已抓取）
+  if (fs.existsSync(RAW_COUNTY)) {
+    const prefProv = {}, prefName = {};
+    for (const file of fs.readdirSync(RAW)) {
+      const code = +file.replace('.json', ''); if (!code) continue;
+      const j = JSON.parse(fs.readFileSync(path.join(RAW, file), 'utf8'));
+      const pn = provByCode[code] || String(code);
+      for (const ft of j.features) { prefProv[ft.properties.adcode] = pn; prefName[ft.properties.adcode] = ft.properties.name; }
+    }
+    let countyN = 0;
+    for (const file of fs.readdirSync(RAW_COUNTY)) {
+      const ad = +file.replace('.json', '');
+      const j = JSON.parse(fs.readFileSync(path.join(RAW_COUNTY, file), 'utf8'));
+      for (const ft of j.features) {
+        countyN++;
+        unitsByName[ft.properties.name] = 1;
+        if (!unitProv[ft.properties.name]) unitProv[ft.properties.name] = prefProv[ad] || '';
+      }
+    }
+    // 省直辖叶子（兵团师市、嘉峪关、济源等）
+    for (const file of fs.readdirSync(RAW)) {
+      const code = +file.replace('.json', ''); if (!code) continue;
+      const j = JSON.parse(fs.readFileSync(path.join(RAW, file), 'utf8'));
+      const pn = provByCode[code] || String(code);
+      for (const ft of j.features) if (!ft.properties.childrenNum) { unitsByName[ft.properties.name] = 1; if (!unitProv[ft.properties.name]) unitProv[ft.properties.name] = pn; }
+    }
+    console.log('县级单位已纳入校验:', countyN);
+  }
 }
 
 const problems = [];

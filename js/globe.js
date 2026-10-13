@@ -43,7 +43,7 @@
     // ---------- 视图状态（map 像素 / 经纬度 / 缩放） ----------
     var view = { lng: 105, lat: 34, scale: 1 };    // 当前
     var target = { lng: 105, lat: 34, scale: 1 };  // 目标（平滑跟随）
-    var minScale = 0.25, maxScale = 6;
+    var minScale = 0.25, maxScale = 0.5;   // maxScale 由 resize 按容器计算（minScale×12）
     var autoRotate = false;
     var showProvince = true, showGrid = true;
     var dragging = false, lastX = 0, lastY = 0, lastInteract = 0;
@@ -446,7 +446,9 @@
         needsRedraw = true;
       }
       minScale = Math.min(w / TEX_W, h / TEX_H) * 0.95;   // 可缩放至完整显示全球（宽、高同时容纳）
-      if (maxScale < minScale * 4) maxScale = minScale * 4;
+      // 县级粒度：允许放大到全球尺度的 12 倍（约省域/跨县视角，县界级细节 0.05-0.2° 可见）；
+      // 纹理 4096px 宽，12 倍时约 2.7 倍放大，底图略软而疆域轮廓清晰，权衡后取此值
+      if (maxScale < minScale * 12) maxScale = minScale * 12;
       if (!inited) { fitChina(); inited = true; }
     }
 

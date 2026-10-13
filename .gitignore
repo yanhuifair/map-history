@@ -5,3 +5,4 @@ node_modules/
 # DataV 原始边界（可由 tools/fetch-geo.js 重新抓取）
 tools/raw/
 tools/prov_index.json
+tools/raw-county/
